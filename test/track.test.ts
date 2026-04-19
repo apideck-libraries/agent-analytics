@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { customAnalytics } from '../src/adapters/custom.js'
-import { trackDocView } from '../src/track.js'
+import { trackVisit } from '../src/track.js'
 import type { CaptureEvent } from '../src/types.js'
 
 function makeRequest(
@@ -10,14 +10,14 @@ function makeRequest(
   return new Request(url, { headers })
 }
 
-describe('trackDocView', () => {
+describe('trackVisit', () => {
   it('captures when the UA is a known AI bot', async () => {
     const captured: CaptureEvent[] = []
     const analytics = customAnalytics((e) => {
       captured.push(e)
     })
 
-    await trackDocView(
+    await trackVisit(
       makeRequest('https://example.com/docs/intro', {
         'user-agent': 'ClaudeBot/1.0',
         'x-forwarded-for': '1.2.3.4',
@@ -46,7 +46,7 @@ describe('trackDocView', () => {
 
   it('sets bot_name to Browser for human traffic when onlyBots is false', async () => {
     const spy = vi.fn()
-    await trackDocView(
+    await trackVisit(
       makeRequest('https://example.com/page', {
         'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/120'
       }),
@@ -61,7 +61,7 @@ describe('trackDocView', () => {
 
   it('sets coding_agent_hint and ua_category for HTTP-library UAs (onlyBots: false)', async () => {
     const spy = vi.fn()
-    await trackDocView(
+    await trackVisit(
       makeRequest('https://example.com/docs/intro', { 'user-agent': 'curl/8.4.0' }),
       { analytics: customAnalytics(spy), onlyBots: false }
     )
@@ -76,7 +76,7 @@ describe('trackDocView', () => {
 
   it('skips capture when UA is not a bot and onlyBots is on (default)', async () => {
     const spy = vi.fn()
-    await trackDocView(
+    await trackVisit(
       makeRequest('https://example.com/page', {
         'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/120'
       }),
@@ -87,7 +87,7 @@ describe('trackDocView', () => {
 
   it('captures every request when onlyBots is false', async () => {
     const spy = vi.fn()
-    await trackDocView(
+    await trackVisit(
       makeRequest('https://example.com/page', {
         'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/120'
       }),
@@ -100,7 +100,7 @@ describe('trackDocView', () => {
 
   it('honours a custom event name', async () => {
     const spy = vi.fn()
-    await trackDocView(
+    await trackVisit(
       makeRequest('https://example.com/page', { 'user-agent': 'ClaudeBot/1.0' }),
       { analytics: customAnalytics(spy), eventName: 'agent_fetch' }
     )
@@ -113,7 +113,7 @@ describe('trackDocView', () => {
       throw new Error('downstream offline')
     })
     await expect(
-      trackDocView(
+      trackVisit(
         makeRequest('https://example.com/page', { 'user-agent': 'ClaudeBot' }),
         { analytics }
       )
@@ -122,7 +122,7 @@ describe('trackDocView', () => {
 
   it('uses the first x-forwarded-for value when multiple are present', async () => {
     const spy = vi.fn()
-    await trackDocView(
+    await trackVisit(
       makeRequest('https://example.com/page', {
         'user-agent': 'ClaudeBot',
         'x-forwarded-for': '203.0.113.1, 10.0.0.1'
@@ -133,7 +133,7 @@ describe('trackDocView', () => {
     const b = (
       await (async () => {
         const spy2 = vi.fn()
-        await trackDocView(
+        await trackVisit(
           makeRequest('https://example.com/page', {
             'user-agent': 'ClaudeBot',
             'x-forwarded-for': '203.0.113.1, 10.0.0.2'

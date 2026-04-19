@@ -1,4 +1,4 @@
-export { trackDocView } from './track.js'
+export { trackVisit } from './track.js'
 export {
   AI_BOT_PATTERN,
   HTTP_CLIENT_PATTERN,
@@ -16,5 +16,5 @@ export { customAnalytics } from './adapters/custom.js'
 export type {
   AnalyticsAdapter,
   CaptureEvent,
-  TrackDocViewOptions
+  TrackVisitOptions
 } from './types.js'

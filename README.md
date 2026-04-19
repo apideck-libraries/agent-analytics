@@ -35,12 +35,12 @@ Server logs have the data, but turning them into analytics is a pipeline project
 ## What you get
 
 ```ts
-import { trackDocView, posthogAnalytics } from '@apideck/agent-analytics'
+import { trackVisit, posthogAnalytics } from '@apideck/agent-analytics'
 
 const analytics = posthogAnalytics({ apiKey: process.env.POSTHOG_KEY! })
 
 export function middleware(req: NextRequest) {
-  void trackDocView(req, { analytics })   // ← that's the whole thing
+  void trackVisit(req, { analytics })   // ← that's the whole thing
   return NextResponse.next()
 }
 ```
@@ -121,11 +121,11 @@ Ships with **PostHog**, **webhook**, and **custom** adapters. BYO analytics.
 ```ts
 // middleware.ts
 import {
-  trackDocView
+  trackVisit
 } from '@apideck/agent-analytics'
 
 export function middleware(req) {
-  void trackDocView(req, {
+  void trackVisit(req, {
     analytics,
     source: 'page-view'
   })
@@ -366,14 +366,14 @@ Full middleware example: [`README.md → Markdown mirror helpers`](./README.md#m
 <details>
 <summary><b>Will this slow down my middleware?</b></summary>
 
-No. `trackDocView` returns a promise you don't await, and the underlying `fetch` uses `keepalive: true` — the browser / runtime guarantees the request completes after your response returns. Your critical path is: `req.headers.get('user-agent')` + a regex test + a `void fetch(...)`. Sub-millisecond.
+No. `trackVisit` returns a promise you don't await, and the underlying `fetch` uses `keepalive: true` — the browser / runtime guarantees the request completes after your response returns. Your critical path is: `req.headers.get('user-agent')` + a regex test + a `void fetch(...)`. Sub-millisecond.
 
 </details>
 
 <details>
 <summary><b>What if my analytics backend is down?</b></summary>
 
-The adapter call is wrapped in try/catch — `trackDocView` never throws, even if PostHog / your webhook / your custom callback crashes. You lose the event, not the response.
+The adapter call is wrapped in try/catch — `trackVisit` never throws, even if PostHog / your webhook / your custom callback crashes. You lose the event, not the response.
 
 </details>
 
