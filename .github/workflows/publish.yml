@@ -41,8 +41,15 @@ jobs:
           node-version: 22
           cache: npm
       # npm OIDC trusted publishing requires npm CLI >= 11.5.1. Node 22 ships
-      # with npm 10.x, so upgrade explicitly before publish.
-      - run: npm install -g npm@latest
+      # with npm 10.x. `npm install -g npm@latest` on Node 22 collides with
+      # the bundled npm (MODULE_NOT_FOUND on promise-retry), so install a
+      # fresh npm to a local prefix and prepend it to PATH — no self-upgrade.
+      - name: Install modern npm
+        run: |
+          mkdir -p "$RUNNER_TEMP/npm-latest"
+          npm install --prefix "$RUNNER_TEMP/npm-latest" npm@latest
+          echo "$RUNNER_TEMP/npm-latest/node_modules/.bin" >> "$GITHUB_PATH"
+      - run: npm --version
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
