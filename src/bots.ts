@@ -150,7 +150,7 @@ export interface AgentClassification {
 /**
  * One-stop classification of a user-agent. Combines {@link isAiBot},
  * {@link isHttpClient}, and {@link parseBotName} into a single structured
- * result. Used internally by `trackDocView` to populate event properties;
+ * result. Used internally by `trackVisit` to populate event properties;
  * useful in consumer code when you need all signals at once.
  */
 export function classifyAgent(userAgent: string | null | undefined): AgentClassification {

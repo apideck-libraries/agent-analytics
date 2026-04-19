@@ -9,7 +9,7 @@ export interface AnalyticsAdapter {
   capture(event: CaptureEvent): Promise<void> | void
 }
 
-export interface TrackDocViewOptions {
+export interface TrackVisitOptions {
   analytics: AnalyticsAdapter
   /**
    * Label describing how the request arrived (e.g. `'page-view'`, `'md-suffix'`,

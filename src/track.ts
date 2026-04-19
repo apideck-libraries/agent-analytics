@@ -1,6 +1,6 @@
 import { classifyAgent, isAiBot } from './bots.js'
 import { hashId } from './hash.js'
-import type { TrackDocViewOptions } from './types.js'
+import type { TrackVisitOptions } from './types.js'
 
 /**
  * Capture an event describing the incoming request. Fire-and-forget: awaits
@@ -10,9 +10,9 @@ import type { TrackDocViewOptions } from './types.js'
  * When `onlyBots` is true (the default), skips capture unless the UA matches
  * {@link AI_BOT_PATTERN}. Set `onlyBots: false` to track every visit.
  */
-export async function trackDocView(
+export async function trackVisit(
   req: Request,
-  opts: TrackDocViewOptions
+  opts: TrackVisitOptions
 ): Promise<void> {
   const userAgent = req.headers.get('user-agent') || ''
 
