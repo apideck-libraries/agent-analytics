@@ -1,0 +1,55 @@
+name: Auto-release on version bump
+
+# Watches package.json on main. If its version field bumps to something that
+# doesn't have a matching `v<version>` tag yet, create the tag + GitHub
+# Release. That fires `publish.yml` via its `release: published` trigger,
+# which runs the tests, builds, and publishes to npm via OIDC.
+#
+# Net effect: bump `package.json`, merge, and a new npm version lands without
+# anyone touching the CLI. Version bumps still happen manually (either in a
+# PR or via `npm version <level>`) so you control the cadence.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  maybe-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need the full tag history to check whether v<version> exists.
+          fetch-depth: 0
+      - name: Read version from package.json
+        id: version
+        run: |
+          v=$(node -p "require('./package.json').version")
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $v"
+      - name: Check if tag already exists
+        id: tag
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.value }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag v${{ steps.version.outputs.value }} already exists — nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create GitHub Release (triggers publish.yml)
+        if: steps.tag.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.version.outputs.value }}" \
+            --title "v${{ steps.version.outputs.value }}" \
+            --generate-notes

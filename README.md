@@ -453,25 +453,30 @@ npm test
 
 ### Releasing
 
-Publishing to npm is automated — a GitHub Release triggers the `publish.yml`
-workflow, which runs typecheck + tests + build and then `npm publish --provenance`.
+Publishing to npm is fully automated by two workflows:
+
+1. **`release.yml`** watches `package.json` on `main`. When the version field
+   bumps to something without a matching `v<version>` tag, it creates the
+   GitHub Release.
+2. **`publish.yml`** fires on `release: published`, runs typecheck + tests +
+   build, and publishes to npm with `--provenance` via OIDC trusted
+   publishing (no secrets required).
+
+So cutting a release is just:
 
 ```bash
-# 1. Bump the version (choose patch | minor | major) — this commits and tags.
+# Pick a level (patch | minor | major), or edit package.json directly.
 npm version patch
-
-# 2. Push the tag so GitHub picks it up.
-git push && git push --tags
-
-# 3. Cut the release (triggers the workflow).
-gh release create "v$(node -p 'require(\"./package.json\").version')" \
-  --title "v$(node -p 'require(\"./package.json\").version')" \
-  --generate-notes
+git push
 ```
 
-The workflow uses npm's [OIDC trusted publishing](https://docs.npmjs.com/trusted-publishers)
-when available (no secrets required), falling back to an `NPM_TOKEN` repo
-secret if set. See `.github/workflows/publish.yml` for the auth options.
+The push lands on main, `release.yml` notices the new version, cuts the
+release, and `publish.yml` publishes. No CLI juggling, no secrets to manage.
+
+OIDC trusted publishing is configured at
+[npmjs.com/package/@apideck/agent-analytics/access](https://www.npmjs.com/package/@apideck/agent-analytics/access)
+— the GitHub repo + `publish.yml` workflow are registered as the sole
+trusted publisher.
 
 ## Credits
 
