@@ -1,0 +1,48 @@
+name: Publish
+
+# Publishes @apideck/agent-analytics to npm whenever a GitHub Release is
+# published (via the UI or `gh release create ...`). Can also be kicked off
+# manually from the Actions tab if a publish needs retrying.
+#
+# AUTH — two options, either works:
+#   1. npm trusted publishing (preferred, no secrets): configure at
+#      https://www.npmjs.com/package/@apideck/agent-analytics/access → set
+#      "Trusted Publisher" to this GitHub repo + the `publish.yml` workflow.
+#      The `id-token: write` permission below is what enables OIDC. Once
+#      configured, remove the NODE_AUTH_TOKEN line.
+#   2. Fallback: add an NPM_TOKEN repo secret with an automation token from
+#      https://www.npmjs.com/settings/<user>/tokens/new (scope: Automation).
+#
+# The version being published is whatever is in package.json at the release
+# tag. Bump it manually (or via `npm version patch|minor|major`) before
+# cutting the release so the two stay in sync.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

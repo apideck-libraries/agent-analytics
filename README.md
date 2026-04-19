@@ -430,6 +430,28 @@ npm install
 npm test
 ```
 
+### Releasing
+
+Publishing to npm is automated — a GitHub Release triggers the `publish.yml`
+workflow, which runs typecheck + tests + build and then `npm publish --provenance`.
+
+```bash
+# 1. Bump the version (choose patch | minor | major) — this commits and tags.
+npm version patch
+
+# 2. Push the tag so GitHub picks it up.
+git push && git push --tags
+
+# 3. Cut the release (triggers the workflow).
+gh release create "v$(node -p 'require(\"./package.json\").version')" \
+  --title "v$(node -p 'require(\"./package.json\").version')" \
+  --generate-notes
+```
+
+The workflow uses npm's [OIDC trusted publishing](https://docs.npmjs.com/trusted-publishers)
+when available (no secrets required), falling back to an `NPM_TOKEN` repo
+secret if set. See `.github/workflows/publish.yml` for the auth options.
+
 ## Credits
 
 Built on learnings from:
