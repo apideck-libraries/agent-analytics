@@ -1,0 +1,80 @@
+{
+  "name": "@apideck/agent-analytics",
+  "version": "0.1.0",
+  "description": "Track AI agent and bot traffic to your Next.js / Vercel app — PostHog, webhooks, or any custom analytics backend. Detects Claude, ChatGPT, Perplexity, Google-Extended, and more.",
+  "keywords": [
+    "ai",
+    "agents",
+    "analytics",
+    "bot-detection",
+    "claude",
+    "chatgpt",
+    "perplexity",
+    "llm",
+    "posthog",
+    "nextjs",
+    "vercel",
+    "middleware"
+  ],
+  "homepage": "https://github.com/apideck-libraries/agent-analytics#readme",
+  "bugs": {
+    "url": "https://github.com/apideck-libraries/agent-analytics/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/apideck-libraries/agent-analytics.git"
+  },
+  "license": "MIT",
+  "author": "Apideck",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./markdown": {
+      "types": "./dist/markdown.d.ts",
+      "import": "./dist/markdown.js",
+      "require": "./dist/markdown.cjs"
+    },
+    "./posthog": {
+      "types": "./dist/adapters/posthog.d.ts",
+      "import": "./dist/adapters/posthog.js",
+      "require": "./dist/adapters/posthog.cjs"
+    },
+    "./webhook": {
+      "types": "./dist/adapters/webhook.d.ts",
+      "import": "./dist/adapters/webhook.js",
+      "require": "./dist/adapters/webhook.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
