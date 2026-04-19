@@ -35,10 +35,24 @@ describe('trackDocView', () => {
       path: '/docs/intro',
       user_agent: 'ClaudeBot/1.0',
       is_ai_bot: true,
+      bot_name: 'Claude',
       referer: 'https://claude.ai/',
       source: 'ua-rewrite',
       site: 'docs'
     })
+  })
+
+  it('sets bot_name to Browser for human traffic when onlyBots is false', async () => {
+    const spy = vi.fn()
+    await trackDocView(
+      makeRequest('https://example.com/page', {
+        'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/120'
+      }),
+      { analytics: customAnalytics(spy), onlyBots: false }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.is_ai_bot).toBe(false)
+    expect(event.properties.bot_name).toBe('Browser')
   })
 
   it('skips capture when UA is not a bot and onlyBots is on (default)', async () => {

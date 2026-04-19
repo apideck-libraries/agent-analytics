@@ -1,4 +1,4 @@
-import { isAiBot, AI_BOT_PATTERN } from './bots.js'
+import { isAiBot, AI_BOT_PATTERN, parseBotName } from './bots.js'
 import { hashId } from './hash.js'
 import type { TrackDocViewOptions } from './types.js'
 
@@ -45,6 +45,7 @@ export async function trackDocView(
       path: pathname,
       user_agent: userAgent,
       is_ai_bot: AI_BOT_PATTERN.test(userAgent),
+      bot_name: parseBotName(userAgent),
       referer,
       source: opts.source ?? null,
       ...opts.properties

@@ -61,6 +61,7 @@ One line of middleware. Fire-and-forget. Zero impact on your response latency. E
     "path": "/docs/intro",
     "user_agent": "ClaudeBot/1.0 (+https://claude.ai/bot)",
     "is_ai_bot": true,                      // trivially segmentable
+    "bot_name": "Claude",                   // 'Claude' | 'ChatGPT' | 'Perplexity' | 'Google' | ... | 'Browser' | 'Other'
     "referer": "https://claude.ai/",
     "source": "page-view"                   // whatever label you passed
   }
