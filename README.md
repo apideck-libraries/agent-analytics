@@ -60,8 +60,10 @@ One line of middleware. Fire-and-forget. Zero impact on your response latency. E
     "$current_url": "https://example.com/docs/intro",
     "path": "/docs/intro",
     "user_agent": "ClaudeBot/1.0 (+https://claude.ai/bot)",
-    "is_ai_bot": true,                      // trivially segmentable
-    "bot_name": "Claude",                   // 'Claude' | 'ChatGPT' | 'Perplexity' | 'Google' | ... | 'Browser' | 'Other'
+    "is_ai_bot": true,                      // strict: matches a branded AI crawler
+    "bot_name": "Claude",                   // 'Claude' | 'ChatGPT' | ... | 'curl' | 'axios' | 'Electron' | 'Browser' | 'Other'
+    "ua_category": "declared-crawler",      // 'declared-crawler' | 'coding-agent-hint' | 'browser' | 'other'
+    "coding_agent_hint": false,             // loose: HTTP-library / automation UA (curl, axios, got, colly, Electron, ...)
     "referer": "https://claude.ai/",
     "source": "page-view"                   // whatever label you passed
   }
@@ -209,6 +211,25 @@ By default only AI bots are captured. Pass `onlyBots: false` to track every requ
 </table>
 
 New agents appear every month. Patch releases ship as the list grows — watch the repo for updates. Raise a PR if you spot one we're missing.
+
+### Coding agents (loose detection — `coding_agent_hint: true`)
+
+Coding agents like Claude Code, Cline, Cursor, and Windsurf **don't identify themselves by name** in their user agent. They use whatever HTTP library they're built on, so detection is a loose heuristic — the UAs below are *also* used by legitimate curl scripts, CI jobs, and server-to-server traffic.
+
+`is_ai_bot` stays `false` for these so your strict AI-traffic segment is clean. The `coding_agent_hint` property is the wider net; pair it with other signals (path patterns, [JA4 fingerprints via Vercel Log Drains](https://vercel.com/docs/observability/log-drains), HEAD-then-GET request shape) when you need higher confidence.
+
+| Agent | Signature observed | `bot_name` |
+|---|---|---|
+| Claude Code | `axios/1.8.4` | `axios` |
+| Cline / Junie | `curl/8.4.0` | `curl` |
+| Cursor | `got (sindresorhus/got)` | `got` |
+| Windsurf | `colly` (Go) | `colly` |
+| VS Code | `Electron/` marker | `Electron` |
+| Other automation | `node-fetch`, `python-requests`, `Go-http-client`, `okhttp`, `aiohttp`, `Deno` | exact library name |
+
+Playwright-based agents (Aider, OpenCode) spoof full Mozilla/Safari UAs and are **indistinguishable from real browsers by UA alone**. They'll show up as `bot_name: Browser`, `ua_category: browser`. Catching those needs TLS fingerprinting (JA4) or behavioural analysis.
+
+Credit: coding-agent signatures catalogued by [Addy Osmani](https://addyosmani.com/blog/agentic-engine-optimization/).
 
 ---
 

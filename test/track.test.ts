@@ -36,6 +36,8 @@ describe('trackDocView', () => {
       user_agent: 'ClaudeBot/1.0',
       is_ai_bot: true,
       bot_name: 'Claude',
+      ua_category: 'declared-crawler',
+      coding_agent_hint: false,
       referer: 'https://claude.ai/',
       source: 'ua-rewrite',
       site: 'docs'
@@ -53,6 +55,23 @@ describe('trackDocView', () => {
     const event = spy.mock.calls[0]![0] as CaptureEvent
     expect(event.properties.is_ai_bot).toBe(false)
     expect(event.properties.bot_name).toBe('Browser')
+    expect(event.properties.ua_category).toBe('browser')
+    expect(event.properties.coding_agent_hint).toBe(false)
+  })
+
+  it('sets coding_agent_hint and ua_category for HTTP-library UAs (onlyBots: false)', async () => {
+    const spy = vi.fn()
+    await trackDocView(
+      makeRequest('https://example.com/docs/intro', { 'user-agent': 'curl/8.4.0' }),
+      { analytics: customAnalytics(spy), onlyBots: false }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties).toMatchObject({
+      is_ai_bot: false,
+      bot_name: 'curl',
+      ua_category: 'coding-agent-hint',
+      coding_agent_hint: true
+    })
   })
 
   it('skips capture when UA is not a bot and onlyBots is on (default)', async () => {

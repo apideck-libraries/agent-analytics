@@ -1,4 +1,4 @@
-import { isAiBot, AI_BOT_PATTERN, parseBotName } from './bots.js'
+import { classifyAgent, isAiBot } from './bots.js'
 import { hashId } from './hash.js'
 import type { TrackDocViewOptions } from './types.js'
 
@@ -34,6 +34,7 @@ export async function trackDocView(
   const forwardedFor = req.headers.get('x-forwarded-for') || ''
   const ip = forwardedFor.split(',')[0]?.trim() ?? ''
   const referer = req.headers.get('referer')
+  const classification = classifyAgent(userAgent)
 
   const event = {
     event: opts.eventName ?? 'doc_view',
@@ -44,8 +45,10 @@ export async function trackDocView(
       $current_url: origin ? `${origin}${pathname}` : pathname,
       path: pathname,
       user_agent: userAgent,
-      is_ai_bot: AI_BOT_PATTERN.test(userAgent),
-      bot_name: parseBotName(userAgent),
+      is_ai_bot: classification.isAiBot,
+      bot_name: classification.label,
+      ua_category: classification.kind,
+      coding_agent_hint: classification.codingAgentHint,
       referer,
       source: opts.source ?? null,
       ...opts.properties

@@ -1,5 +1,14 @@
 export { trackDocView } from './track.js'
-export { AI_BOT_PATTERN, isAiBot, parseBotName, firstUserAgentProduct } from './bots.js'
+export {
+  AI_BOT_PATTERN,
+  HTTP_CLIENT_PATTERN,
+  classifyAgent,
+  firstUserAgentProduct,
+  isAiBot,
+  isHttpClient,
+  parseBotName
+} from './bots.js'
+export type { AgentClassification, AgentKind } from './bots.js'
 export { hashId } from './hash.js'
 export { posthogAnalytics } from './adapters/posthog.js'
 export { webhookAnalytics } from './adapters/webhook.js'
