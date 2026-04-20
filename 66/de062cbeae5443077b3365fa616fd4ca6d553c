@@ -1,0 +1,23 @@
+test/track.test.ts
+  ec82d1c6986482ce 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "66de062cbeae5443077b3365fa616fd4ca6d553c",
+  "prompts": {
+    "ec82d1c6986482ce": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92e4dc49-5d3e-47c8-92e1-5b8ca90e7dff",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "GJ",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
