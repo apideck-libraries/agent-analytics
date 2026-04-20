@@ -74,7 +74,18 @@ describe('trackVisit', () => {
     })
   })
 
-  it('skips capture when UA is not a bot and onlyBots is on (default)', async () => {
+  it('skips capture when UA is not a bot and onlyBots is true', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', {
+        'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/120'
+      }),
+      { analytics: customAnalytics(spy), onlyBots: true }
+    )
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('captures non-bot traffic by default (onlyBots defaults to false)', async () => {
     const spy = vi.fn()
     await trackVisit(
       makeRequest('https://example.com/page', {
@@ -82,7 +93,7 @@ describe('trackVisit', () => {
       }),
       { analytics: customAnalytics(spy) }
     )
-    expect(spy).not.toHaveBeenCalled()
+    expect(spy).toHaveBeenCalledOnce()
   })
 
   it('captures every request when onlyBots is false', async () => {
