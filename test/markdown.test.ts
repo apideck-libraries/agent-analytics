@@ -39,6 +39,30 @@ describe('markdownServeDecision', () => {
       )
     ).toBeNull()
   })
+
+  it('prefers ua-rewrite over md-suffix when both match', () => {
+    const d = markdownServeDecision(
+      req('https://example.com/docs/intro.md', { 'user-agent': 'ClaudeBot/1.0' })
+    )
+    expect(d?.reason).toBe('ua-rewrite')
+    // UA branch doesn't strip the suffix — the strippedPath is the raw pathname.
+    expect(d?.strippedPath).toBe('/docs/intro.md')
+  })
+
+  it('detects Accept: text/markdown even when other media types are listed', () => {
+    const d = markdownServeDecision(
+      req('https://example.com/docs/intro', {
+        accept: 'text/html, application/xhtml+xml, text/markdown;q=0.9, */*;q=0.8'
+      })
+    )
+    expect(d?.reason).toBe('accept-header')
+  })
+
+  it('ignores `.md` inside the query string', () => {
+    expect(
+      markdownServeDecision(req('https://example.com/docs/intro?ref=foo.md'))
+    ).toBeNull()
+  })
 })
 
 describe('markdownHeaders', () => {
@@ -57,6 +81,14 @@ describe('markdownHeaders', () => {
   it('omits x-markdown-tokens when tokens is zero or missing', () => {
     expect(markdownHeaders({ tokens: 0 })['x-markdown-tokens']).toBeUndefined()
     expect(markdownHeaders()['x-markdown-tokens']).toBeUndefined()
+  })
+
+  it('omits x-markdown-tokens for negative values', () => {
+    expect(markdownHeaders({ tokens: -5 })['x-markdown-tokens']).toBeUndefined()
+  })
+
+  it('rounds fractional tokens up', () => {
+    expect(markdownHeaders({ tokens: 100.2 })['x-markdown-tokens']).toBe('101')
   })
 
   it('honours a custom Content-Signal directive', () => {
@@ -85,5 +117,35 @@ describe('synthesizeMarkdownPointer', () => {
       siteName: 'Example Inc.'
     })
     expect(body).toContain('# Example Inc.')
+  })
+
+  it('renders all three link types when provided', () => {
+    const body = synthesizeMarkdownPointer({
+      origin: 'https://example.com',
+      pathname: '/about',
+      llmsTxtUrl: 'https://example.com/llms.txt',
+      llmsFullTxtUrl: 'https://example.com/llms-full.txt',
+      markdownIndexUrl: 'https://example.com/md/index.json'
+    })
+    expect(body).toContain('https://example.com/llms.txt')
+    expect(body).toContain('https://example.com/llms-full.txt')
+    expect(body).toContain('https://example.com/md/index.json')
+    expect(body).toContain('For machine-readable documentation')
+  })
+
+  it('omits the links section when no link URLs are supplied', () => {
+    const body = synthesizeMarkdownPointer({
+      origin: 'https://example.com',
+      pathname: '/about'
+    })
+    expect(body).not.toContain('For machine-readable documentation')
+  })
+
+  it('falls back to the raw origin string when it cannot be parsed as a URL', () => {
+    const body = synthesizeMarkdownPointer({
+      origin: 'not-a-url',
+      pathname: '/x'
+    })
+    expect(body.startsWith('# not-a-url')).toBe(true)
   })
 })

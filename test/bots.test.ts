@@ -178,4 +178,78 @@ describe('HTTP_CLIENT_PATTERN', () => {
     expect(HTTP_CLIENT_PATTERN.flags).toContain('i')
     expect(HTTP_CLIENT_PATTERN.test('CURL/8.4.0')).toBe(true)
   })
+
+  it('does not false-match tokens that contain "got" as a substring', () => {
+    // "forgot", "gotham", "ngot" etc. shouldn't register as the `got` library.
+    expect(HTTP_CLIENT_PATTERN.test('Mozilla/5.0 forgotten/1.0')).toBe(false)
+    expect(HTTP_CLIENT_PATTERN.test('gotham-browser/2.0')).toBe(false)
+  })
+})
+
+describe('parseBotName — additional branded crawlers', () => {
+  it.each([
+    ['Mozilla/5.0 (compatible; Amazonbot/0.1)', 'Amazon'],
+    ['Bytespider; spider-feedback@bytedance.com', 'Bytespider'],
+    ['DuckAssistBot/1.0', 'DuckDuckGo'],
+    ['MistralAI-User/1.0', 'Mistral'],
+    ['YouBot/1.0', 'You.com'],
+    ['AI2Bot (+https://allenai.org/crawler)', 'AI2'],
+    ['Diffbot/1.0', 'Diffbot'],
+    ['cohere-ai/1.0', 'Cohere'],
+    ['Cursor/0.1', 'Cursor'],
+    ['Windsurf/0.1', 'Windsurf'],
+    ['PetalBot; +http://aspiegel.com/petalbot', 'PetalBot'],
+    ['Mozilla/5.0 (compatible; bingbot/2.0)', 'Bing'],
+    ['Mozilla/5.0 (compatible; Meta-ExternalAgent/1.0)', 'Meta']
+  ])('labels %s as %s', (ua, label) => {
+    expect(parseBotName(ua)).toBe(label)
+  })
+})
+
+describe('classifyAgent — spoofed UAs and edge cases', () => {
+  it('treats a Playwright-driven Mozilla UA as a plain browser (Aider/OpenCode look like users at the UA layer)', () => {
+    const playwrightish =
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36'
+    expect(classifyAgent(playwrightish)).toMatchObject({
+      kind: 'browser',
+      isAiBot: false,
+      codingAgentHint: false
+    })
+  })
+
+  it('treats an empty UA as other, not browser', () => {
+    expect(classifyAgent('')).toMatchObject({
+      kind: 'other',
+      label: 'Other',
+      isAiBot: false,
+      codingAgentHint: false
+    })
+  })
+
+  it('prefers declared-crawler over coding-agent-hint when both signatures appear', () => {
+    // A branded bot that happens to include "axios/" in its UA — branded wins.
+    const ua = 'ClaudeBot/1.0 (axios/1.8.4; +https://claude.ai/bot)'
+    const r = classifyAgent(ua)
+    expect(r.kind).toBe('declared-crawler')
+    expect(r.isAiBot).toBe(true)
+    // codingAgentHint still tracks the HTTP-library match independently.
+    expect(r.codingAgentHint).toBe(true)
+  })
+})
+
+describe('firstUserAgentProduct — edge cases', () => {
+  it('trims leading whitespace', () => {
+    expect(firstUserAgentProduct('   ClaudeBot/1.0')).toBe('ClaudeBot')
+  })
+
+  it('handles UAs with no slash', () => {
+    expect(firstUserAgentProduct('SomeAgent')).toBe('SomeAgent')
+  })
+
+  it('still pulls the name out of (compatible; …) wrappers that include a comment suffix', () => {
+    // Note: the implementation captures any non-/;whitespace run, so the
+    // trailing `)` sticks. We pin that here so an intentional regex tightening
+    // is a conscious change — not an accident.
+    expect(firstUserAgentProduct('Mozilla/5.0 (compatible; GPTBot)')).toBe('GPTBot)')
+  })
 })
