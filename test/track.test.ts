@@ -28,7 +28,7 @@ describe('trackVisit', () => {
 
     expect(captured).toHaveLength(1)
     const event = captured[0]!
-    expect(event.event).toBe('doc_view')
+    expect(event.event).toBe('agent_visit')
     expect(event.distinctId).toMatch(/^anon_[0-9a-f]+$/)
     expect(event.properties).toMatchObject({
       $current_url: 'https://example.com/docs/intro',
