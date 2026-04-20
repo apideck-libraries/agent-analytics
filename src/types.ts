@@ -18,7 +18,7 @@ export interface TrackVisitOptions {
    */
   source?: string
   /**
-   * Event name. Defaults to `'doc_view'`.
+   * Event name. Defaults to `'agent_visit'`.
    */
   eventName?: string
   /**
@@ -27,6 +27,12 @@ export interface TrackVisitOptions {
    * coding-agent traffic that uses HTTP-library UAs like axios or curl).
    */
   onlyBots?: boolean
+  /**
+   * When `true`, capture AI bots and coding agents (HTTP clients like axios,
+   * curl, node-fetch) but skip regular browsers. Use this when client-side
+   * analytics already handles browser traffic. Defaults to `false`.
+   */
+  skipBrowsers?: boolean
   /**
    * Extra properties merged into the captured event. Useful for tagging the
    * site (`{ site: 'docs' }`) or any other dimension.

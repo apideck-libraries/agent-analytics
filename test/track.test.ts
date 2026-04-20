@@ -109,6 +109,37 @@ describe('trackVisit', () => {
     expect(event.properties.is_ai_bot).toBe(false)
   })
 
+  it('skipBrowsers captures AI bots', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', { 'user-agent': 'ClaudeBot/1.0' }),
+      { analytics: customAnalytics(spy), skipBrowsers: true }
+    )
+    expect(spy).toHaveBeenCalledOnce()
+  })
+
+  it('skipBrowsers captures coding agents (HTTP clients)', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', { 'user-agent': 'axios/1.6.0' }),
+      { analytics: customAnalytics(spy), skipBrowsers: true }
+    )
+    expect(spy).toHaveBeenCalledOnce()
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.coding_agent_hint).toBe(true)
+  })
+
+  it('skipBrowsers skips regular browsers', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', {
+        'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/120'
+      }),
+      { analytics: customAnalytics(spy), skipBrowsers: true }
+    )
+    expect(spy).not.toHaveBeenCalled()
+  })
+
   it('honours a custom event name', async () => {
     const spy = vi.fn()
     await trackVisit(
