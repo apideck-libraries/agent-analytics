@@ -84,4 +84,58 @@ describe('posthogAnalytics', () => {
     })
     expect(fetchImpl.mock.calls[0]?.[0]).toBe('https://svc.example.com/batch')
   })
+
+  it('prepends a leading slash if the path is given without one', async () => {
+    const fetchImpl = okFetch()
+    const analytics = posthogAnalytics({
+      apiKey: 'k',
+      host: 'https://svc.example.com',
+      path: 'batch',
+      fetchImpl
+    })
+    await analytics.capture({
+      event: 'doc_view',
+      distinctId: 'id',
+      timestamp: 't',
+      properties: {}
+    })
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe('https://svc.example.com/batch')
+  })
+
+  it('sets Content-Type: application/json and keepalive: true', async () => {
+    const fetchImpl = okFetch()
+    const analytics = posthogAnalytics({ apiKey: 'k', fetchImpl })
+    await analytics.capture({
+      event: 'doc_view',
+      distinctId: 'id',
+      timestamp: 't',
+      properties: {}
+    })
+    const init = fetchImpl.mock.calls[0]![1]!
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json')
+    expect(init.keepalive).toBe(true)
+  })
+
+  it('passes the event timestamp through unchanged', async () => {
+    const fetchImpl = okFetch()
+    const analytics = posthogAnalytics({ apiKey: 'k', fetchImpl })
+    await analytics.capture({
+      event: 'doc_view',
+      distinctId: 'id',
+      timestamp: '2026-04-21T12:34:56.000Z',
+      properties: {}
+    })
+    const body = JSON.parse(fetchImpl.mock.calls[0]![1]!.body as string)
+    expect(body.timestamp).toBe('2026-04-21T12:34:56.000Z')
+  })
+
+  it('surfaces fetch errors so trackVisit can swallow them at the boundary', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
+      throw new Error('network down')
+    })
+    const analytics = posthogAnalytics({ apiKey: 'k', fetchImpl })
+    await expect(
+      analytics.capture({ event: 'doc_view', distinctId: 'id', timestamp: 't', properties: {} })
+    ).rejects.toThrow('network down')
+  })
 })

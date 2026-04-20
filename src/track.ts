@@ -7,8 +7,9 @@ import type { TrackVisitOptions } from './types.js'
  * the adapter but swallows errors so a downed analytics backend never breaks
  * the response path. Callers typically don't await the returned promise.
  *
- * When `onlyBots` is true (the default), skips capture unless the UA matches
- * {@link AI_BOT_PATTERN}. Set `onlyBots: false` to track every visit.
+ * By default, captures every request so coding-agent traffic (axios, curl,
+ * Electron, …) shows up alongside branded crawlers. Set `onlyBots: true` to
+ * restrict capture to UAs matching {@link AI_BOT_PATTERN}.
  */
 export async function trackVisit(
   req: Request,
@@ -16,7 +17,7 @@ export async function trackVisit(
 ): Promise<void> {
   const userAgent = req.headers.get('user-agent') || ''
 
-  const onlyBots = opts.onlyBots ?? true
+  const onlyBots = opts.onlyBots ?? false
   if (onlyBots && !isAiBot(userAgent)) return
 
   let pathname = '/'

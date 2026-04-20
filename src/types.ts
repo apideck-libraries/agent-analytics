@@ -22,8 +22,9 @@ export interface TrackVisitOptions {
    */
   eventName?: string
   /**
-   * When `true` (default), skip capture unless the request UA matches the
-   * built-in AI bot pattern. Set to `false` to capture every request.
+   * When `true`, skip capture unless the request UA matches the built-in AI
+   * bot pattern. Defaults to `false`, which captures every request (including
+   * coding-agent traffic that uses HTTP-library UAs like axios or curl).
    */
   onlyBots?: boolean
   /**

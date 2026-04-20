@@ -74,7 +74,18 @@ describe('trackVisit', () => {
     })
   })
 
-  it('skips capture when UA is not a bot and onlyBots is on (default)', async () => {
+  it('skips capture when UA is not a bot and onlyBots is true', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', {
+        'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/120'
+      }),
+      { analytics: customAnalytics(spy), onlyBots: true }
+    )
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('captures non-bot traffic by default (onlyBots defaults to false)', async () => {
     const spy = vi.fn()
     await trackVisit(
       makeRequest('https://example.com/page', {
@@ -82,7 +93,7 @@ describe('trackVisit', () => {
       }),
       { analytics: customAnalytics(spy) }
     )
-    expect(spy).not.toHaveBeenCalled()
+    expect(spy).toHaveBeenCalledOnce()
   })
 
   it('captures every request when onlyBots is false', async () => {
@@ -118,6 +129,102 @@ describe('trackVisit', () => {
         { analytics }
       )
     ).resolves.toBeUndefined()
+  })
+
+  it('emits $process_person_profile: false and an ISO timestamp', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', { 'user-agent': 'ClaudeBot' }),
+      { analytics: customAnalytics(spy) }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.$process_person_profile).toBe(false)
+    expect(event.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/)
+  })
+
+  it('defaults source to null when not provided', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', { 'user-agent': 'ClaudeBot' }),
+      { analytics: customAnalytics(spy) }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.source).toBeNull()
+  })
+
+  it('defaults referer to null when header is missing', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', { 'user-agent': 'ClaudeBot' }),
+      { analytics: customAnalytics(spy) }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.referer).toBeNull()
+  })
+
+  it('respects an explicit origin override in $current_url', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://internal.example/docs/intro', { 'user-agent': 'ClaudeBot' }),
+      { analytics: customAnalytics(spy), origin: 'https://public.example.com' }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.$current_url).toBe('https://public.example.com/docs/intro')
+    expect(event.properties.path).toBe('/docs/intro')
+  })
+
+  it('lets user-supplied properties override built-in event properties', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/original', { 'user-agent': 'ClaudeBot' }),
+      {
+        analytics: customAnalytics(spy),
+        properties: { path: '/overridden', site: 'docs', is_ai_bot: 'custom' }
+      }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.path).toBe('/overridden')
+    expect(event.properties.site).toBe('docs')
+    expect(event.properties.is_ai_bot).toBe('custom')
+    // Unrelated built-ins still present.
+    expect(event.properties.bot_name).toBe('Claude')
+  })
+
+  it('produces the same distinct_id for identical ip+ua across calls', async () => {
+    const spy = vi.fn()
+    const headers = { 'user-agent': 'ClaudeBot', 'x-forwarded-for': '203.0.113.1' }
+    await trackVisit(
+      makeRequest('https://example.com/a', headers),
+      { analytics: customAnalytics(spy) }
+    )
+    await trackVisit(
+      makeRequest('https://example.com/b', headers),
+      { analytics: customAnalytics(spy) }
+    )
+    const a = spy.mock.calls[0]![0] as CaptureEvent
+    const b = spy.mock.calls[1]![0] as CaptureEvent
+    expect(a.distinctId).toBe(b.distinctId)
+  })
+
+  it('produces different distinct_ids for different UAs from the same IP', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/p', {
+        'user-agent': 'ClaudeBot',
+        'x-forwarded-for': '203.0.113.1'
+      }),
+      { analytics: customAnalytics(spy) }
+    )
+    await trackVisit(
+      makeRequest('https://example.com/p', {
+        'user-agent': 'GPTBot',
+        'x-forwarded-for': '203.0.113.1'
+      }),
+      { analytics: customAnalytics(spy) }
+    )
+    const a = spy.mock.calls[0]![0] as CaptureEvent
+    const b = spy.mock.calls[1]![0] as CaptureEvent
+    expect(a.distinctId).not.toBe(b.distinctId)
   })
 
   it('uses the first x-forwarded-for value when multiple are present', async () => {

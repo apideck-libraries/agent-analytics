@@ -184,7 +184,7 @@ The middleware call:
 4. **Posts to your adapter** with `keepalive: true` so the request survives after the response returns
 5. **Swallows errors** — a downed analytics backend never breaks your response
 
-By default only AI bots are captured. Pass `onlyBots: false` to track every request.
+By default every request is captured so coding-agent traffic (axios, curl, Electron, …) surfaces alongside branded crawlers. Pass `onlyBots: true` to restrict capture to UAs matching the built-in AI bot pattern.
 
 ---
 
