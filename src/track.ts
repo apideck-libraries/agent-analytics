@@ -1,4 +1,4 @@
-import { classifyAgent, isAiBot } from './bots.js'
+import { classifyAgent, isAiBot, isHttpClient } from './bots.js'
 import { hashId } from './hash.js'
 import type { TrackVisitOptions } from './types.js'
 
@@ -18,7 +18,9 @@ export async function trackVisit(
   const userAgent = req.headers.get('user-agent') || ''
 
   const onlyBots = opts.onlyBots ?? false
+  const skipBrowsers = opts.skipBrowsers ?? false
   if (onlyBots && !isAiBot(userAgent)) return
+  if (skipBrowsers && !isAiBot(userAgent) && !isHttpClient(userAgent)) return
 
   let pathname = '/'
   let originFromUrl = ''
