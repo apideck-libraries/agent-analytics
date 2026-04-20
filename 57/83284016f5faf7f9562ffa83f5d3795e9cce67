@@ -1,0 +1,35 @@
+test/custom.test.ts
+  7e899efa9c30b6bf 1-36
+test/webhook.test.ts
+  7e899efa9c30b6bf 1-86
+test/markdown.test.ts
+  7e899efa9c30b6bf 42-65,86-93,121-150
+test/posthog.test.ts
+  7e899efa9c30b6bf 87-140
+test/track.test.ts
+  7e899efa9c30b6bf 134-229
+test/hash.test.ts
+  7e899efa9c30b6bf 21-36
+test/bots.test.ts
+  7e899efa9c30b6bf 181-254
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "5783284016f5faf7f9562ffa83f5d3795e9cce67",
+  "prompts": {
+    "7e899efa9c30b6bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04cefe08-62d4-4fbb-a70c-31cd3ae3f7bd",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "GJ",
+      "messages": [],
+      "total_additions": 427,
+      "total_deletions": 3,
+      "accepted_lines": 424,
+      "overriden_lines": 0
+    }
+  }
+}
