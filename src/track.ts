@@ -38,7 +38,7 @@ export async function trackVisit(
   const classification = classifyAgent(userAgent)
 
   const event = {
-    event: opts.eventName ?? 'doc_view',
+    event: opts.eventName ?? 'agent_visit',
     distinctId: hashId(`${ip}:${userAgent}`),
     timestamp: new Date().toISOString(),
     properties: {
