@@ -44,11 +44,15 @@ describe('trackVisit', () => {
     })
   })
 
-  it('sets bot_name to Browser for human traffic when onlyBots is false', async () => {
+  it('sets bot_name to Browser for real browser traffic', async () => {
     const spy = vi.fn()
     await trackVisit(
       makeRequest('https://example.com/page', {
-        'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/120'
+        'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/120',
+        'accept-language': 'en-US,en;q=0.9',
+        'sec-fetch-mode': 'navigate',
+        'sec-ch-ua': '"Chromium";v="120"',
+        accept: 'text/html,application/xhtml+xml'
       }),
       { analytics: customAnalytics(spy), onlyBots: false }
     )
@@ -57,6 +61,7 @@ describe('trackVisit', () => {
     expect(event.properties.bot_name).toBe('Browser')
     expect(event.properties.ua_category).toBe('browser')
     expect(event.properties.coding_agent_hint).toBe(false)
+    expect(event.properties.headless_likely).toBe(false)
   })
 
   it('sets coding_agent_hint and ua_category for HTTP-library UAs (onlyBots: false)', async () => {
@@ -129,15 +134,35 @@ describe('trackVisit', () => {
     expect(event.properties.coding_agent_hint).toBe(true)
   })
 
-  it('skipBrowsers skips regular browsers', async () => {
+  it('skipBrowsers skips real browsers (with standard headers)', async () => {
     const spy = vi.fn()
     await trackVisit(
       makeRequest('https://example.com/page', {
-        'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/120'
+        'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/120',
+        'accept-language': 'en-US,en;q=0.9',
+        'sec-fetch-mode': 'navigate',
+        'sec-ch-ua': '"Chromium";v="120", "Google Chrome";v="120"',
+        accept: 'text/html,application/xhtml+xml'
       }),
       { analytics: customAnalytics(spy), skipBrowsers: true }
     )
     expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('skipBrowsers captures headless browsers (missing standard headers)', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', {
+        'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/120'
+        // Missing: accept-language, sec-fetch-mode, sec-ch-ua, proper accept
+      }),
+      { analytics: customAnalytics(spy), skipBrowsers: true }
+    )
+    expect(spy).toHaveBeenCalledOnce()
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.ua_category).toBe('headless-likely')
+    expect(event.properties.headless_likely).toBe(true)
+    expect(event.properties.headless_score).toBeGreaterThanOrEqual(2)
   })
 
   it('honours a custom event name', async () => {
