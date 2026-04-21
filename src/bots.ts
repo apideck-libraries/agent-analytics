@@ -86,6 +86,52 @@ export function parseBotName(userAgent: string | null | undefined): string {
   if (s.includes('windsurf')) return 'Windsurf'
   if (s.includes('petalbot')) return 'PetalBot'
 
+  // SEO crawlers and monitoring bots.
+  if (s.includes('ahrefsbot')) return 'Ahrefs'
+  if (s.includes('semrushbot')) return 'Semrush'
+  if (s.includes('mj12bot')) return 'Majestic'
+  if (s.includes('dotbot')) return 'Moz'
+  if (s.includes('rogerbot')) return 'Moz'
+  if (s.includes('screaming frog')) return 'Screaming Frog'
+  if (s.includes('sitebulb')) return 'Sitebulb'
+  if (s.includes('linkfluence')) return 'Linkfluence'
+  if (s.includes('dataforseo')) return 'DataForSEO'
+  if (s.includes('serpstatbot')) return 'Serpstat'
+
+  // Monitoring and feed bots.
+  if (s.includes('uptimerobot')) return 'UptimeRobot'
+  if (s.includes('pingdom')) return 'Pingdom'
+  if (s.includes('statuscake')) return 'StatusCake'
+  if (s.includes('newrelicpinger')) return 'New Relic'
+  if (s.includes('datadogagent') || s.includes('datadog')) return 'Datadog'
+  if (s.includes('slackbot')) return 'Slack'
+  if (s.includes('twitterbot')) return 'Twitter'
+  if (s.includes('linkedinbot')) return 'LinkedIn'
+  if (s.includes('discordbot')) return 'Discord'
+  if (s.includes('telegrambot')) return 'Telegram'
+  if (s.includes('whatsapp')) return 'WhatsApp'
+
+  // AI search and indexing bots.
+  if (s.includes('linkupbot')) return 'Linkup'
+  if (s.includes('sogou')) return 'Sogou'
+  if (s.includes('yandexbot')) return 'Yandex'
+  if (s.includes('baiduspider')) return 'Baidu'
+
+  // Link preview fetchers.
+  if (s.includes('facebookexternalhit')) return 'Facebook'
+  if (s.includes('com.apple.webkit')) return 'Apple URL Preview'
+
+  // Uptime and monitoring.
+  if (s.includes('ohdear')) return 'Oh Dear'
+
+  // Generic scrapers.
+  if (s.includes('scrapy')) return 'Scrapy'
+  if (s.includes('headlesschrome')) return 'Headless Chrome'
+  if (s.includes('phantomjs')) return 'PhantomJS'
+  if (s.includes('wget')) return 'wget'
+  if (s.includes('httpie')) return 'HTTPie'
+  if (s.includes('guzzlehttp')) return 'Guzzle'
+
   // HTTP library / runtime signatures (loose — coding agent or automation).
   // Check Electron before Browser since Electron UAs contain Chrome/Safari.
   if (s.includes('electron/')) return 'Electron'
