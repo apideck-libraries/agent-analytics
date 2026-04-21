@@ -111,12 +111,26 @@ export function parseBotName(userAgent: string | null | undefined): string {
   if (s.includes('telegrambot')) return 'Telegram'
   if (s.includes('whatsapp')) return 'WhatsApp'
 
+  // AI search and indexing bots.
+  if (s.includes('linkupbot')) return 'Linkup'
+  if (s.includes('sogou')) return 'Sogou'
+  if (s.includes('yandexbot')) return 'Yandex'
+  if (s.includes('baiduspider')) return 'Baidu'
+
+  // Link preview fetchers.
+  if (s.includes('facebookexternalhit')) return 'Facebook'
+  if (s.includes('com.apple.webkit')) return 'Apple URL Preview'
+
+  // Uptime and monitoring.
+  if (s.includes('ohdear')) return 'Oh Dear'
+
   // Generic scrapers.
   if (s.includes('scrapy')) return 'Scrapy'
   if (s.includes('headlesschrome')) return 'Headless Chrome'
   if (s.includes('phantomjs')) return 'PhantomJS'
   if (s.includes('wget')) return 'wget'
   if (s.includes('httpie')) return 'HTTPie'
+  if (s.includes('guzzlehttp')) return 'Guzzle'
 
   // HTTP library / runtime signatures (loose — coding agent or automation).
   // Check Electron before Browser since Electron UAs contain Chrome/Safari.
