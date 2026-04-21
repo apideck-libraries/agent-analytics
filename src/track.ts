@@ -1,4 +1,4 @@
-import { classifyAgent, isAiBot, isHttpClient } from './bots.js'
+import { classifyRequest, detectHeadless, isAiBot, isHttpClient } from './bots.js'
 import { hashId } from './hash.js'
 import type { TrackVisitOptions } from './types.js'
 
@@ -20,7 +20,12 @@ export async function trackVisit(
   const onlyBots = opts.onlyBots ?? false
   const skipBrowsers = opts.skipBrowsers ?? false
   if (onlyBots && !isAiBot(userAgent)) return
-  if (skipBrowsers && !isAiBot(userAgent) && !isHttpClient(userAgent)) return
+  if (skipBrowsers && !isAiBot(userAgent) && !isHttpClient(userAgent)) {
+    // Not a declared bot or HTTP client — check headless heuristics.
+    // Playwright-based agents (Aider, OpenCode) will pass if they're missing
+    // standard browser headers. Real browsers get skipped.
+    if (!detectHeadless(req).likely) return
+  }
 
   let pathname = '/'
   let originFromUrl = ''
@@ -37,7 +42,7 @@ export async function trackVisit(
   const forwardedFor = req.headers.get('x-forwarded-for') || ''
   const ip = forwardedFor.split(',')[0]?.trim() ?? ''
   const referer = req.headers.get('referer')
-  const classification = classifyAgent(userAgent)
+  const classification = classifyRequest(req)
 
   const event = {
     event: opts.eventName ?? 'agent_visit',
@@ -52,6 +57,8 @@ export async function trackVisit(
       bot_name: classification.label,
       ua_category: classification.kind,
       coding_agent_hint: classification.codingAgentHint,
+      headless_score: classification.headless?.score ?? 0,
+      headless_likely: classification.headless?.likely ?? false,
       referer,
       source: opts.source ?? null,
       ...opts.properties

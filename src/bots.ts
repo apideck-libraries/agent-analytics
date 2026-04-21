@@ -166,23 +166,81 @@ export function firstUserAgentProduct(userAgent: string | null | undefined): str
   return first || 'Other'
 }
 
+/**
+ * Detect likely headless/automated browsers by checking for missing headers
+ * that real browsers always send. Playwright, Puppeteer, and similar tools
+ * spoof the UA but often omit standard browser headers.
+ *
+ * Signals checked (each scores 1 point):
+ * - Missing `Accept-Language` — every real browser sends this
+ * - Missing `Sec-Fetch-Mode` — sent by all modern browsers
+ * - Missing `Sec-CH-UA` — Client Hints, Chromium 89+
+ * - `Sec-CH-UA` contains "HeadlessChrome"
+ * - Missing or bare Accept header — browsers send detailed accept lists
+ * - `Connection: close` with browser UA — browsers use keep-alive
+ *
+ * Returns a score (0-6), the signals that fired, and a boolean `likely`
+ * flag (score >= 2 with a browser-like UA).
+ */
+export function detectHeadless(req: Request): HeadlessDetection {
+  const signals: string[] = []
+  const ua = (req.headers.get('user-agent') || '').toLowerCase()
+  const isBrowserUA =
+    ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') || ua.includes('firefox')
+
+  if (!isBrowserUA) return { score: 0, signals: [], likely: false }
+
+  if (!req.headers.get('accept-language')) {
+    signals.push('missing-accept-language')
+  }
+  if (!req.headers.get('sec-fetch-mode')) {
+    signals.push('missing-sec-fetch-mode')
+  }
+  const secChUa = req.headers.get('sec-ch-ua')
+  if (!secChUa) {
+    signals.push('missing-sec-ch-ua')
+  } else if (secChUa.toLowerCase().includes('headlesschrome')) {
+    signals.push('headless-chrome-hint')
+  }
+  const accept = req.headers.get('accept') || ''
+  if (!accept || accept === '*/*') {
+    signals.push('missing-or-bare-accept')
+  }
+  if ((req.headers.get('connection') || '').toLowerCase() === 'close') {
+    signals.push('connection-close')
+  }
+
+  const score = signals.length
+  return { score, signals, likely: score >= 2 }
+}
+
+export interface HeadlessDetection {
+  /** Number of suspicious signals found (0-6). */
+  score: number
+  /** Names of the specific signals that fired. */
+  signals: string[]
+  /** True when score >= 2 — strong headless indication. */
+  likely: boolean
+}
+
 export type AgentKind =
   | 'declared-crawler'
   | 'coding-agent-hint'
+  | 'headless-likely'
   | 'browser'
   | 'other'
 
 export interface AgentClassification {
   /**
-   * Categorical tag for the UA:
+   * Categorical tag for the request:
    *
    * - `'declared-crawler'` — {@link AI_BOT_PATTERN} matched. High confidence.
    * - `'coding-agent-hint'` — {@link HTTP_CLIENT_PATTERN} matched. Loose
    *   signal; could be a coding agent, a curl script, or any automation.
-   * - `'browser'` — looks like a real browser. Could be a genuine user or
-   *   a Playwright-based agent (Aider, OpenCode) that can't be distinguished
-   *   at the UA layer.
-   * - `'other'` — unrecognised or empty.
+   * - `'headless-likely'` — Browser-like UA but missing standard headers.
+   *   Strong signal of Playwright/Puppeteer automation (Aider, OpenCode, etc.).
+   * - `'browser'` — Looks like a real browser with expected headers present.
+   * - `'other'` — Unrecognised or empty.
    */
   kind: AgentKind
   /** Human-readable label, same string {@link parseBotName} returns. */
@@ -191,13 +249,13 @@ export interface AgentClassification {
   isAiBot: boolean
   /** Loose: `true` for known HTTP-library / automation UAs. */
   codingAgentHint: boolean
+  /** Headless browser detection result. Only populated when `req` is passed. */
+  headless?: HeadlessDetection
 }
 
 /**
- * One-stop classification of a user-agent. Combines {@link isAiBot},
- * {@link isHttpClient}, and {@link parseBotName} into a single structured
- * result. Used internally by `trackVisit` to populate event properties;
- * useful in consumer code when you need all signals at once.
+ * UA-only classification. Use {@link classifyRequest} for full detection
+ * including headless browser heuristics.
  */
 export function classifyAgent(userAgent: string | null | undefined): AgentClassification {
   const label = parseBotName(userAgent)
@@ -211,4 +269,22 @@ export function classifyAgent(userAgent: string | null | undefined): AgentClassi
   else kind = 'other'
 
   return { kind, label, isAiBot: aiBot, codingAgentHint: httpClient }
+}
+
+/**
+ * Full request classification — combines UA parsing with header-based
+ * headless detection. When a browser-like UA is missing standard headers,
+ * the kind is promoted from `'browser'` to `'headless-likely'`.
+ */
+export function classifyRequest(req: Request): AgentClassification {
+  const userAgent = req.headers.get('user-agent') || ''
+  const base = classifyAgent(userAgent)
+  const headless = detectHeadless(req)
+
+  let kind = base.kind
+  if (kind === 'browser' && headless.likely) {
+    kind = 'headless-likely'
+  }
+
+  return { ...base, kind, headless }
 }
