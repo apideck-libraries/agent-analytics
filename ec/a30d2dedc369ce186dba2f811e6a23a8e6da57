@@ -1,0 +1,31 @@
+test/track.test.ts
+  6d5dd13227d1d1bb 286-330
+src/types.ts
+  6d5dd13227d1d1bb 46-52
+README.md
+  6d5dd13227d1d1bb 62-63
+src/track.ts
+  6d5dd13227d1d1bb 45-49,60-62
+package.json
+  6d5dd13227d1d1bb 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "eca30d2dedc369ce186dba2f811e6a23a8e6da57",
+  "prompts": {
+    "6d5dd13227d1d1bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1a14e7c-ae1f-4162-8e94-d7dec6429d5e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "GJ",
+      "messages": [],
+      "total_additions": 63,
+      "total_deletions": 1,
+      "accepted_lines": 63,
+      "overriden_lines": 0
+    }
+  }
+}
