@@ -43,4 +43,11 @@ export interface TrackVisitOptions {
    * origin.
    */
   origin?: string
+  /**
+   * When `true`, emit the raw `client_ip` (first hop of `x-forwarded-for`) on
+   * the event. Off by default — the IP is always hashed into `distinctId`,
+   * but the raw value is only useful for log-style exports (e.g. Peec.ai's
+   * crawl-insights CSV) and carries privacy implications.
+   */
+  captureIp?: boolean
 }

@@ -283,6 +283,51 @@ describe('trackVisit', () => {
     expect(a.distinctId).not.toBe(b.distinctId)
   })
 
+  it('captures method, country_code, and omits client_ip by default', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      new Request('https://example.com/page', {
+        method: 'POST',
+        headers: {
+          'user-agent': 'ClaudeBot',
+          'x-forwarded-for': '203.0.113.1',
+          'x-vercel-ip-country': 'NL'
+        }
+      }),
+      { analytics: customAnalytics(spy) }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.method).toBe('POST')
+    expect(event.properties.country_code).toBe('NL')
+    expect(event.properties).not.toHaveProperty('client_ip')
+  })
+
+  it('falls back to cf-ipcountry for country_code', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', {
+        'user-agent': 'ClaudeBot',
+        'cf-ipcountry': 'US'
+      }),
+      { analytics: customAnalytics(spy) }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.country_code).toBe('US')
+  })
+
+  it('emits client_ip when captureIp is true', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', {
+        'user-agent': 'ClaudeBot',
+        'x-forwarded-for': '203.0.113.1, 10.0.0.1'
+      }),
+      { analytics: customAnalytics(spy), captureIp: true }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.client_ip).toBe('203.0.113.1')
+  })
+
   it('uses the first x-forwarded-for value when multiple are present', async () => {
     const spy = vi.fn()
     await trackVisit(
