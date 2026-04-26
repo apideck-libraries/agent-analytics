@@ -2,8 +2,12 @@ name: Auto-release on version bump
 
 # Watches package.json on main. If its version field bumps to something that
 # doesn't have a matching `v<version>` tag yet, create the tag + GitHub
-# Release. That fires `publish.yml` via its `release: published` trigger,
-# which runs the tests, builds, and publishes to npm via OIDC.
+# Release, then explicitly kick off `publish.yml` against the new tag.
+#
+# Why the explicit dispatch: GitHub suppresses workflow triggers for events
+# created by `GITHUB_TOKEN` (anti-recursion). So a `release: published` event
+# from `gh release create` does NOT fire publish.yml. `workflow_dispatch` via
+# `gh workflow run` is not subject to the same suppression and runs reliably.
 #
 # Net effect: bump `package.json`, merge, and a new npm version lands without
 # anyone touching the CLI. Version bumps still happen manually (either in a
@@ -17,6 +21,7 @@ on:
 
 permissions:
   contents: write
+  actions: write  # needed to dispatch publish.yml via `gh workflow run`
 
 concurrency:
   group: auto-release
@@ -45,7 +50,7 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Create GitHub Release (triggers publish.yml)
+      - name: Create GitHub Release
         if: steps.tag.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -53,3 +58,9 @@ jobs:
           gh release create "v${{ steps.version.outputs.value }}" \
             --title "v${{ steps.version.outputs.value }}" \
             --generate-notes
+      - name: Trigger npm publish for the new tag
+        if: steps.tag.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run publish.yml --ref "v${{ steps.version.outputs.value }}"

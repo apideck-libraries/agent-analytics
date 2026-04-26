@@ -50,4 +50,11 @@ export interface TrackVisitOptions {
    * crawl-insights CSV) and carries privacy implications.
    */
   captureIp?: boolean
+  /**
+   * When `true`, emit `country_code` derived from `x-vercel-ip-country`,
+   * `cf-ipcountry`, or `x-country-code`. Off by default to keep the event
+   * payload PII-free — coarse country is low-risk but still user-derived.
+   * Enable for log-style exports (e.g. Peec.ai's crawl-insights CSV).
+   */
+  captureCountry?: boolean
 }

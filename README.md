@@ -60,7 +60,6 @@ One line of middleware. Fire-and-forget. Zero impact on your response latency. E
     "$current_url": "https://example.com/docs/intro",
     "path": "/docs/intro",
     "method": "GET",
-    "country_code": "NL",                   // x-vercel-ip-country / cf-ipcountry / x-country-code
     "user_agent": "ClaudeBot/1.0 (+https://claude.ai/bot)",
     "is_ai_bot": true,                      // strict: matches a branded AI crawler
     "bot_name": "Claude",                   // 'Claude' | 'ChatGPT' | ... | 'curl' | 'axios' | 'Electron' | 'Browser' | 'Other'
@@ -304,6 +303,50 @@ Three triggers, one decision helper:
 | `Accept: text/markdown` header | `curl -H "Accept: text/markdown" /docs/intro` | `accept-header` |
 
 Full middleware example: [`README.md → Markdown mirror helpers`](./README.md#markdown-mirror-helpers) section, or copy from [the reference implementation](https://github.com/apideck-io/developer-docs/blob/main/src/middleware.ts).
+
+---
+
+## Advanced: Peec.ai crawl-insights export
+
+[Peec.ai](https://peec.ai)'s **Agent analytics** product ingests a CSV/CLF access log and produces dashboards on top of it. The Peec docs assume you have a Vercel Log Drain → Axiom (or similar) pipeline that emits these eight columns: `timestamp, request_method, request_url, response_status, client_ip, user_agent, country_code, referer`.
+
+If you're already running this library, **you can skip the log drain** — your PostHog `agent_visit` events are a near-superset of that schema. Opt into the two privacy-sensitive fields:
+
+```ts
+void trackVisit(req, {
+  analytics,
+  captureCountry: true,   // emits country_code from x-vercel-ip-country / cf-ipcountry / x-country-code
+  captureIp: true         // emits raw client_ip (first hop of x-forwarded-for)
+})
+```
+
+Both default to **off** so the library stays PII-free out of the box. Enable them only on the deployments you intend to export.
+
+Then export from PostHog with a SQL insight:
+
+```sql
+SELECT
+  timestamp                                       AS timestamp,
+  coalesce(properties.method, 'GET')              AS request_method,
+  properties.$current_url                         AS request_url,
+  '200'                                           AS response_status,   -- middleware runs pre-response
+  coalesce(properties.client_ip, properties.$ip)  AS client_ip,
+  properties.user_agent                           AS user_agent,
+  coalesce(properties.country_code,
+           properties.$geoip_country_code)        AS country_code,
+  properties.referer                              AS referer
+FROM events
+WHERE event = 'agent_visit'
+  AND properties.is_ai_bot = true
+  AND timestamp >= now() - INTERVAL 30 DAY
+ORDER BY timestamp DESC
+```
+
+`coalesce` makes the query work on historical events that predate the new fields and on events where `captureCountry` / `captureIp` are off (PostHog's built-in `$ip` and `$geoip_country_code` enrichment fills the gap). Click **Export → CSV** and upload to Peec.
+
+**Caveats:**
+- `response_status` is hardcoded `200` — middleware runs before the response. If Peec filters on status, use the Vercel Log Drain path instead.
+- Drop `is_ai_bot = true` from the `WHERE` clause to also include coding-agent / scraper traffic (curl, axios, headless browsers).
 
 ---
 

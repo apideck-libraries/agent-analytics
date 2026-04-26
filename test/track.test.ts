@@ -283,7 +283,7 @@ describe('trackVisit', () => {
     expect(a.distinctId).not.toBe(b.distinctId)
   })
 
-  it('captures method, country_code, and omits client_ip by default', async () => {
+  it('captures method by default and omits country_code/client_ip', async () => {
     const spy = vi.fn()
     await trackVisit(
       new Request('https://example.com/page', {
@@ -298,8 +298,21 @@ describe('trackVisit', () => {
     )
     const event = spy.mock.calls[0]![0] as CaptureEvent
     expect(event.properties.method).toBe('POST')
-    expect(event.properties.country_code).toBe('NL')
+    expect(event.properties).not.toHaveProperty('country_code')
     expect(event.properties).not.toHaveProperty('client_ip')
+  })
+
+  it('emits country_code from x-vercel-ip-country when captureCountry is true', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', {
+        'user-agent': 'ClaudeBot',
+        'x-vercel-ip-country': 'NL'
+      }),
+      { analytics: customAnalytics(spy), captureCountry: true }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.country_code).toBe('NL')
   })
 
   it('falls back to cf-ipcountry for country_code', async () => {
@@ -309,7 +322,7 @@ describe('trackVisit', () => {
         'user-agent': 'ClaudeBot',
         'cf-ipcountry': 'US'
       }),
-      { analytics: customAnalytics(spy) }
+      { analytics: customAnalytics(spy), captureCountry: true }
     )
     const event = spy.mock.calls[0]![0] as CaptureEvent
     expect(event.properties.country_code).toBe('US')
