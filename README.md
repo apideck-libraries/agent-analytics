@@ -59,6 +59,8 @@ One line of middleware. Fire-and-forget. Zero impact on your response latency. E
     "$process_person_profile": false,       // PostHog: don't create a person
     "$current_url": "https://example.com/docs/intro",
     "path": "/docs/intro",
+    "method": "GET",
+    "country_code": "NL",                   // x-vercel-ip-country / cf-ipcountry / x-country-code
     "user_agent": "ClaudeBot/1.0 (+https://claude.ai/bot)",
     "is_ai_bot": true,                      // strict: matches a branded AI crawler
     "bot_name": "Claude",                   // 'Claude' | 'ChatGPT' | ... | 'curl' | 'axios' | 'Electron' | 'Browser' | 'Other'

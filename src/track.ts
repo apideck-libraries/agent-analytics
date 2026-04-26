@@ -42,6 +42,11 @@ export async function trackVisit(
   const forwardedFor = req.headers.get('x-forwarded-for') || ''
   const ip = forwardedFor.split(',')[0]?.trim() ?? ''
   const referer = req.headers.get('referer')
+  const country =
+    req.headers.get('x-vercel-ip-country') ||
+    req.headers.get('cf-ipcountry') ||
+    req.headers.get('x-country-code') ||
+    null
   const classification = classifyRequest(req)
 
   const event = {
@@ -52,6 +57,9 @@ export async function trackVisit(
       $process_person_profile: false,
       $current_url: origin ? `${origin}${pathname}` : pathname,
       path: pathname,
+      method: req.method,
+      country_code: country,
+      ...(opts.captureIp ? { client_ip: ip || null } : {}),
       user_agent: userAgent,
       is_ai_bot: classification.isAiBot,
       bot_name: classification.label,
