@@ -57,4 +57,14 @@ export interface TrackVisitOptions {
    * Enable for log-style exports (e.g. Peec.ai's crawl-insights CSV).
    */
   captureCountry?: boolean
+  /**
+   * When `true`, emit `region`, `city`, `latitude`, `longitude`, and
+   * `timezone` derived from Vercel's `x-vercel-ip-*` edge headers. Values
+   * are URL-decoded (Vercel encodes city/region, e.g. `San%20Francisco`).
+   * Missing headers are omitted rather than emitted as empty strings.
+   *
+   * Off by default — geo at city resolution is more identifying than country
+   * alone. Pair with `captureCountry` for a full Peec.ai-style export.
+   */
+  captureGeo?: boolean
 }

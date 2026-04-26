@@ -316,11 +316,12 @@ If you're already running this library, **you can skip the log drain** — your 
 void trackVisit(req, {
   analytics,
   captureCountry: true,   // emits country_code from x-vercel-ip-country / cf-ipcountry / x-country-code
+  captureGeo: true,       // emits region, city, latitude, longitude, timezone from x-vercel-ip-* (URL-decoded)
   captureIp: true         // emits raw client_ip (first hop of x-forwarded-for)
 })
 ```
 
-Both default to **off** so the library stays PII-free out of the box. Enable them only on the deployments you intend to export.
+All three default to **off** so the library stays PII-free out of the box. Enable them only on the deployments you intend to export. `captureGeo` is more identifying than `captureCountry` (city resolution vs. country) — opt in deliberately.
 
 Then export from PostHog with a SQL insight:
 
