@@ -48,6 +48,7 @@ export async function trackVisit(
       req.headers.get('x-country-code') ||
       null
     : null
+  const geo = opts.captureGeo ? extractGeo(req) : null
   const classification = classifyRequest(req)
 
   const event = {
@@ -60,6 +61,7 @@ export async function trackVisit(
       path: pathname,
       method: req.method,
       ...(opts.captureCountry ? { country_code: country } : {}),
+      ...(geo ?? {}),
       ...(opts.captureIp ? { client_ip: ip || null } : {}),
       user_agent: userAgent,
       is_ai_bot: classification.isAiBot,
@@ -79,4 +81,29 @@ export async function trackVisit(
   } catch {
     // Intentional swallow — analytics failures must not affect the response.
   }
+}
+
+// Vercel edge URL-encodes city/region (e.g. `San%20Francisco`); decode so
+// downstream consumers don't have to. Numeric fields (lat/lng) and timezone
+// pass through untouched. Headers without a value are dropped rather than
+// emitted as empty strings.
+function extractGeo(req: Request): Record<string, string> {
+  const decode = (v: string | null) => {
+    if (!v) return ''
+    try {
+      return decodeURIComponent(v)
+    } catch {
+      return v
+    }
+  }
+  const fields: Array<[string, string]> = [
+    ['region', decode(req.headers.get('x-vercel-ip-country-region'))],
+    ['city', decode(req.headers.get('x-vercel-ip-city'))],
+    ['latitude', req.headers.get('x-vercel-ip-latitude') ?? ''],
+    ['longitude', req.headers.get('x-vercel-ip-longitude') ?? ''],
+    ['timezone', req.headers.get('x-vercel-ip-timezone') ?? '']
+  ]
+  const out: Record<string, string> = {}
+  for (const [k, v] of fields) if (v) out[k] = v
+  return out
 }

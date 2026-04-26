@@ -315,6 +315,58 @@ describe('trackVisit', () => {
     expect(event.properties.country_code).toBe('NL')
   })
 
+  it('emits decoded geo fields when captureGeo is true', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', {
+        'user-agent': 'ClaudeBot',
+        'x-vercel-ip-country-region': 'CA',
+        'x-vercel-ip-city': 'San%20Francisco',
+        'x-vercel-ip-latitude': '37.7749',
+        'x-vercel-ip-longitude': '-122.4194',
+        'x-vercel-ip-timezone': 'America/Los_Angeles'
+      }),
+      { analytics: customAnalytics(spy), captureGeo: true }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.region).toBe('CA')
+    expect(event.properties.city).toBe('San Francisco')
+    expect(event.properties.latitude).toBe('37.7749')
+    expect(event.properties.longitude).toBe('-122.4194')
+    expect(event.properties.timezone).toBe('America/Los_Angeles')
+  })
+
+  it('omits geo fields whose headers are missing', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', {
+        'user-agent': 'ClaudeBot',
+        'x-vercel-ip-city': 'Amsterdam'
+      }),
+      { analytics: customAnalytics(spy), captureGeo: true }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties.city).toBe('Amsterdam')
+    expect(event.properties).not.toHaveProperty('region')
+    expect(event.properties).not.toHaveProperty('latitude')
+    expect(event.properties).not.toHaveProperty('timezone')
+  })
+
+  it('omits geo fields when captureGeo is not set', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/page', {
+        'user-agent': 'ClaudeBot',
+        'x-vercel-ip-city': 'Amsterdam',
+        'x-vercel-ip-timezone': 'Europe/Amsterdam'
+      }),
+      { analytics: customAnalytics(spy) }
+    )
+    const event = spy.mock.calls[0]![0] as CaptureEvent
+    expect(event.properties).not.toHaveProperty('city')
+    expect(event.properties).not.toHaveProperty('timezone')
+  })
+
   it('falls back to cf-ipcountry for country_code', async () => {
     const spy = vi.fn()
     await trackVisit(
