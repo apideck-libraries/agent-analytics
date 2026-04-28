@@ -15,7 +15,7 @@
  * Anthropic, Google, Perplexity, Cohere, Apple, Bytedance.
  */
 export const AI_BOT_PATTERN =
-  /ClaudeBot|Claude-User|Anthropic|ChatGPT-User|GPTBot|OAI-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Applebot-Extended|cohere-ai|Bytespider|CCBot|Amazonbot|Meta-ExternalAgent|FacebookBot|DuckAssistBot|MistralAI-User|YouBot|AI2Bot|Diffbot|Cursor|Windsurf/i
+  /ClaudeBot|Claude-User|Claude-SearchBot|Claude-Web|Anthropic|GPTBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Google-CloudVertexBot|Google-Agent|GoogleAgent-Mariner|Gemini-Deep-Research|Applebot|cohere|Bytespider|CCBot|Amazonbot|Amzn-SearchBot|NovaAct|AzureAI-SearchBot|Meta-ExternalAgent|meta-externalfetcher|meta-webindexer|FacebookBot|DuckAssistBot|MistralAI-User|YouBot|AI2Bot|Diffbot|DeepSeek|PanguBot|Webzio-Extended|omgili|Timpibot|Grok|Manus-User|quillbot|MyCentralAIScraperBot|Cursor|Windsurf/i
 
 /**
  * HTTP library / runtime signatures frequently used by coding agents. Matching
@@ -67,15 +67,36 @@ export function parseBotName(userAgent: string | null | undefined): string {
   // Publicly declared AI crawlers (high confidence).
   if (s.includes('chatgpt-user') || s.includes('gptbot') || s.includes('oai-searchbot') || s.includes('openai'))
     return 'ChatGPT'
-  if (s.includes('claudebot') || s.includes('claude-user') || s.includes('anthropic')) return 'Claude'
+  if (
+    s.includes('claudebot') ||
+    s.includes('claude-user') ||
+    s.includes('claude-searchbot') ||
+    s.includes('claude-web') ||
+    s.includes('anthropic')
+  )
+    return 'Claude'
   if (s.includes('perplexitybot') || s.includes('perplexity-user')) return 'Perplexity'
   if (s.includes('ccbot')) return 'Common Crawl'
-  if (s.includes('google-extended') || s.includes('googlebot')) return 'Google'
-  if (s.includes('applebot-extended') || s.includes('applebot')) return 'Apple'
+  if (
+    s.includes('google-extended') ||
+    s.includes('googlebot') ||
+    s.includes('google-cloudvertexbot') ||
+    s.includes('google-agent') ||
+    s.includes('googleagent-mariner') ||
+    s.includes('gemini-deep-research')
+  )
+    return 'Google'
+  if (s.includes('applebot')) return 'Apple'
   if (s.includes('bingbot')) return 'Bing'
   if (s.includes('bytespider')) return 'Bytespider'
-  if (s.includes('amazonbot')) return 'Amazon'
-  if (s.includes('meta-externalagent') || s.includes('facebookbot')) return 'Meta'
+  if (s.includes('amazonbot') || s.includes('amzn-searchbot') || s.includes('novaact')) return 'Amazon'
+  if (
+    s.includes('meta-externalagent') ||
+    s.includes('meta-externalfetcher') ||
+    s.includes('meta-webindexer') ||
+    s.includes('facebookbot')
+  )
+    return 'Meta'
   if (s.includes('mistralai-user')) return 'Mistral'
   if (s.includes('duckassistbot')) return 'DuckDuckGo'
   if (s.includes('youbot')) return 'You.com'
@@ -84,6 +105,15 @@ export function parseBotName(userAgent: string | null | undefined): string {
   if (s.includes('cohere')) return 'Cohere'
   if (s.includes('cursor')) return 'Cursor'
   if (s.includes('windsurf')) return 'Windsurf'
+  if (s.includes('deepseek')) return 'DeepSeek'
+  if (s.includes('pangubot')) return 'Huawei'
+  if (s.includes('webzio') || s.includes('omgili')) return 'Webz.io'
+  if (s.includes('timpibot')) return 'Timpi'
+  if (s.includes('grok') || s.includes('xai-')) return 'xAI'
+  if (s.includes('manus-user')) return 'Manus'
+  if (s.includes('quillbot')) return 'QuillBot'
+  if (s.includes('azureai-searchbot')) return 'Microsoft'
+  if (s.includes('mycentralaiscraperbot')) return 'MyCentralAI'
   if (s.includes('petalbot')) return 'PetalBot'
 
   // SEO crawlers and monitoring bots.
