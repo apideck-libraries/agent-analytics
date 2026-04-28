@@ -200,9 +200,72 @@ describe('parseBotName — additional branded crawlers', () => {
     ['Windsurf/0.1', 'Windsurf'],
     ['PetalBot; +http://aspiegel.com/petalbot', 'PetalBot'],
     ['Mozilla/5.0 (compatible; bingbot/2.0)', 'Bing'],
-    ['Mozilla/5.0 (compatible; Meta-ExternalAgent/1.0)', 'Meta']
+    ['Mozilla/5.0 (compatible; Meta-ExternalAgent/1.0)', 'Meta'],
+    ['Claude-SearchBot/1.0', 'Claude'],
+    ['Claude-Web/1.0', 'Claude'],
+    ['Applebot/0.1', 'Apple'],
+    ['Mozilla/5.0 (compatible; Google-CloudVertexBot/1.0)', 'Google'],
+    ['Gemini-Deep-Research/1.0', 'Google'],
+    ['GoogleAgent-Mariner/1.0', 'Google'],
+    ['Amzn-SearchBot/1.0', 'Amazon'],
+    ['NovaAct/1.0', 'Amazon'],
+    ['AzureAI-SearchBot/1.0', 'Microsoft'],
+    ['meta-externalfetcher/1.0', 'Meta'],
+    ['meta-webindexer/1.0', 'Meta'],
+    ['DeepSeekBot/1.0', 'DeepSeek'],
+    ['PanguBot/1.0', 'Huawei'],
+    ['Webzio-Extended/1.0', 'Webz.io'],
+    ['omgili/0.5 (+http://omgili.com)', 'Webz.io'],
+    ['omgilibot/0.5', 'Webz.io'],
+    ['Timpibot/0.8', 'Timpi'],
+    ['GrokBot/1.0', 'xAI'],
+    ['Grok-DeepSearch/1.0', 'xAI'],
+    ['xAI-Grok/1.0', 'xAI'],
+    ['Manus-User/1.0', 'Manus'],
+    ['quillbot.com/1.0', 'QuillBot'],
+    ['MyCentralAIScraperBot/1.0', 'MyCentralAI'],
+    ['cohere-training-data-crawler/1.0', 'Cohere']
   ])('labels %s as %s', (ua, label) => {
     expect(parseBotName(ua)).toBe(label)
+  })
+})
+
+describe('isAiBot — expanded crawler coverage', () => {
+  it.each([
+    'Claude-SearchBot/1.0',
+    'Claude-Web/1.0',
+    'Applebot/0.1',
+    'Google-CloudVertexBot/1.0',
+    'Google-Agent/1.0',
+    'GoogleAgent-Mariner/1.0',
+    'Gemini-Deep-Research/1.0',
+    'Amzn-SearchBot/1.0',
+    'NovaAct/1.0',
+    'AzureAI-SearchBot/1.0',
+    'meta-externalfetcher/1.0',
+    'meta-webindexer/1.0',
+    'DeepSeekBot/1.0',
+    'PanguBot/1.0',
+    'Webzio-Extended/1.0',
+    'omgili/0.5',
+    'omgilibot/0.5',
+    'Timpibot/0.8',
+    'GrokBot/1.0',
+    'Grok-DeepSearch/1.0',
+    'xAI-Grok/1.0',
+    'Manus-User/1.0',
+    'quillbot.com/1.0',
+    'MyCentralAIScraperBot/1.0',
+    'cohere-training-data-crawler/1.0',
+    'Ai2Bot-Dolma/1.0'
+  ])('flags %s as an AI bot', (ua) => {
+    expect(isAiBot(ua)).toBe(true)
+  })
+
+  it('does not flag Claude-Code (coding-agent UA, intentionally excluded)', () => {
+    // Claude-Code goes through HTTP_CLIENT_PATTERN heuristics, not the
+    // declared-crawler set — see comment at AI_BOT_PATTERN.
+    expect(isAiBot('Claude-Code/1.0')).toBe(false)
   })
 })
 
