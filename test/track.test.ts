@@ -420,3 +420,65 @@ describe('trackVisit', () => {
     expect(a.distinctId).toBe(b.distinctId)
   })
 })
+
+describe('trackVisit — verifyIdentity', () => {
+  const CHATGPT_UA = 'Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)'
+  const REAL_OPENAI_IP = '104.208.184.193'
+
+  async function capture(headers: Record<string, string>, opts: Record<string, unknown> = {}) {
+    const spy = vi.fn()
+    await trackVisit(makeRequest('https://example.com/page', headers), {
+      analytics: customAnalytics(spy),
+      ...opts
+    })
+    return spy.mock.calls[0]![0] as CaptureEvent
+  }
+
+  it('omits the verification properties entirely when not opted in', () => {
+    // Absent, not null — so existing dashboards don't gain a column of nulls.
+    return capture({ 'user-agent': CHATGPT_UA, 'x-forwarded-for': REAL_OPENAI_IP }).then((e) => {
+      expect('bot_verified' in e.properties).toBe(false)
+      expect('bot_verification' in e.properties).toBe(false)
+    })
+  })
+
+  it('marks a real crawler verified', async () => {
+    const e = await capture(
+      { 'user-agent': CHATGPT_UA, 'x-forwarded-for': REAL_OPENAI_IP },
+      { verifyIdentity: true }
+    )
+    expect(e.properties.bot_verified).toBe(true)
+    expect(e.properties.bot_verification).toBe('verified')
+    expect(e.properties.bot_name).toBe('ChatGPT')
+  })
+
+  it('marks the same UA from another IP spoofed', async () => {
+    const e = await capture(
+      { 'user-agent': CHATGPT_UA, 'x-forwarded-for': '1.2.3.4' },
+      { verifyIdentity: true }
+    )
+    expect(e.properties.bot_verified).toBe(false)
+    expect(e.properties.bot_verification).toBe('spoofed')
+    // Still labelled ChatGPT and still is_ai_bot — the verdict is the extra
+    // dimension, it does not rewrite the classification.
+    expect(e.properties.bot_name).toBe('ChatGPT')
+    expect(e.properties.is_ai_bot).toBe(true)
+  })
+
+  it('uses the first x-forwarded-for hop, not a trailing proxy', async () => {
+    const e = await capture(
+      { 'user-agent': CHATGPT_UA, 'x-forwarded-for': `${REAL_OPENAI_IP}, 10.0.0.1` },
+      { verifyIdentity: true }
+    )
+    expect(e.properties.bot_verification).toBe('verified')
+  })
+
+  it('reports unverifiable for vendors without a published feed', async () => {
+    const e = await capture(
+      { 'user-agent': 'Mozilla/5.0 (compatible; Bytespider/1.0)', 'x-forwarded-for': '1.2.3.4' },
+      { verifyIdentity: true }
+    )
+    expect(e.properties.bot_verified).toBeNull()
+    expect(e.properties.bot_verification).toBe('unverifiable')
+  })
+})
