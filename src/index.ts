@@ -13,6 +13,13 @@ export {
 export type { AgentClassification, AgentKind, HeadlessDetection } from './bots.js'
 export { hashId, randomSecret, HashSecretError } from './hash.js'
 export { CaptureTransportError } from './errors.js'
+export { agentIntent, agentPolicy } from './policy.js'
+export type {
+  AgentAction,
+  AgentDecision,
+  AgentIntent,
+  AgentPolicyOptions
+} from './policy.js'
 export { posthogAnalytics } from './adapters/posthog.js'
 export { webhookAnalytics } from './adapters/webhook.js'
 export { customAnalytics } from './adapters/custom.js'
