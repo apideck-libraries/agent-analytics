@@ -123,6 +123,13 @@ traffic, and calling it `Browser` hid it behind the obvious
 omitted on declared crawlers and HTTP clients, where they fired on 99% of
 events and carried no signal.
 
+**Node 18 is no longer supported; the minimum is Node 20.** `globalThis.crypto`
+only became available by default in Node 19, and shipping a `node:crypto`
+fallback would mean a static import of a Node builtin in a library whose main
+target is edge runtimes. Node 18 reached end of life in April 2025. Runtimes
+without Web Crypto now fail with an explicit message rather than a confusing
+`undefined` dereference.
+
 ### Also in 0.12
 
 - Adapters surface non-2xx responses as `CaptureTransportError` instead of

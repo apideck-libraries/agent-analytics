@@ -19,6 +19,27 @@ export class HashSecretError extends Error {
   }
 }
 
+/**
+ * Web Crypto, or a clear error explaining why it is missing.
+ *
+ * `globalThis.crypto` is present by default from Node 19; on Node 18 it sat
+ * behind `--experimental-global-webcrypto`. We require Node >= 20 rather than
+ * shipping a `node:crypto` fallback, because a static import of a Node builtin
+ * breaks bundling for the edge runtimes this library primarily targets — and
+ * Node 18 reached end of life in April 2025.
+ */
+function subtle(): SubtleCrypto {
+  const c = globalThis.crypto
+  if (!c?.subtle) {
+    throw new HashSecretError(
+      'Web Crypto is unavailable. agent-analytics requires Node >= 20, or any ' +
+        'runtime exposing globalThis.crypto.subtle (Vercel Edge, Cloudflare ' +
+        'Workers, Deno, browsers).'
+    )
+  }
+  return c.subtle
+}
+
 // Importing a CryptoKey costs more than the signature itself, so keep one per
 // secret. Bounded by however many secrets a process configures — realistically
 // one.
@@ -27,7 +48,7 @@ const KEYS = new Map<string, Promise<CryptoKey>>()
 function keyFor(secret: string): Promise<CryptoKey> {
   let k = KEYS.get(secret)
   if (!k) {
-    k = crypto.subtle.importKey(
+    k = subtle().importKey(
       'raw',
       new TextEncoder().encode(secret),
       { name: 'HMAC', hash: 'SHA-256' },
@@ -53,7 +74,7 @@ export async function hashId(input: string, secret: string): Promise<string> {
   if (typeof secret !== 'string' || secret.length === 0) {
     throw new HashSecretError('hashId requires a non-empty secret')
   }
-  const sig = await crypto.subtle.sign('HMAC', await keyFor(secret), new TextEncoder().encode(input))
+  const sig = await subtle().sign('HMAC', await keyFor(secret), new TextEncoder().encode(input))
   const bytes = new Uint8Array(sig, 0, 8)
   let out = ''
   for (const b of bytes) out += b.toString(16).padStart(2, '0')
@@ -68,7 +89,8 @@ export async function hashId(input: string, secret: string): Promise<string> {
  */
 export function randomSecret(): string {
   const b = new Uint8Array(32)
-  crypto.getRandomValues(b)
+  subtle() // surface the same clear error if Web Crypto is missing
+  globalThis.crypto.getRandomValues(b)
   let out = ''
   for (const x of b) out += x.toString(16).padStart(2, '0')
   return out

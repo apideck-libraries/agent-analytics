@@ -11,7 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [18, 20, 22]
+        # Node 18 dropped in 0.12: no globalThis.crypto by default (needs 19+),
+        # and it reached end of life in April 2025.
+        node: [20, 22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
