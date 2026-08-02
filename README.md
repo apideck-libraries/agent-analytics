@@ -298,7 +298,21 @@ your bundle if you import it.
 
 This split is load-bearing rather than tidy-minded. Exporting the payment and
 firewall surfaces from the root once pushed it from 9.6 kB to 22.5 kB — every
-site paid for a firewall recommender that will never run in middleware.
+site paid for a firewall recommender that will never run in middleware. Nothing
+failed; the number just drifted for weeks until someone looked.
+
+So CI now enforces it. `npm run size` checks each entry against
+[`size-budget.json`](./size-budget.json) and fails the build on a regression:
+
+```
+entry               gzipped     budget  used
+dist/index.js       4.44 kB    4.88 kB   91%
+dist/verify.js      6.25 kB    7.42 kB   84%
+dist/pay.js         4.05 kB    4.49 kB   90%
+```
+
+Raising a budget is deliberate — `npm run size -- --update`, and say why in the
+commit.
 
 ## Install
 
