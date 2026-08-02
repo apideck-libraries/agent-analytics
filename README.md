@@ -251,6 +251,37 @@ without Web Crypto now fail with an explicit message rather than a confusing
 - Outbound captures carry a 3s `AbortSignal` (`timeoutMs` to change it).
 - Root bundle is 65% smaller (27.7 kB → 9.6 kB, 3.8 kB gzipped).
 
+## Recommending firewall rules
+
+Turn observed traffic into staged Vercel WAF proposals. It emits *proposals* —
+every rule comes out in `log` mode and Vercel stages rule changes as drafts, so
+nothing is live until you run `vercel firewall publish` yourself.
+
+```ts
+import { recommendFirewallRules, firewallScript } from '@apideck/agent-analytics'
+
+const rules = recommendFirewallRules(observations) // aggregate from your warehouse
+console.log(firewallScript(rules))                // runnable, commented bash
+```
+
+Two rules it will not break, both from measurement rather than taste:
+
+- **Retrieval and search agents are never proposed for blocking**, and a `bypass`
+  rule protecting them is emitted *first* so later rules cannot catch them.
+  Rules evaluate top to bottom, and 60% of AI traffic on one production site is
+  a person asking a question.
+- **Training crawlers get rate limits, not denials.** Denying them removes you
+  from future training sets, which is a discoverability decision rather than a
+  default.
+
+Only a failed verification earns a proposed `deny`. Every recommendation carries
+its `evidence`, a `risk` rating, and a `caveat` where over-blocking is plausible
+— the datacenter-ASN rule is marked `high` risk because corporate VPNs and
+privacy relays egress from hosting networks.
+
+See [`docs/TESTING-PAYMENTS.md`](./docs/TESTING-PAYMENTS.md) for testing the
+payment path end to end.
+
 ## Install
 
 ```bash

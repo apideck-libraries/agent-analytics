@@ -16,6 +16,15 @@ export { CaptureTransportError } from './errors.js'
 export { agentIntent, agentPolicy } from './policy.js'
 export { mppxGateway, paymentGate, x402Gateway } from './gateway.js'
 export { entitlementGateway, memoryEntitlementStore } from './entitlement.js'
+export { firewallScript, recommendFirewallRules } from './firewall.js'
+export type {
+  FirewallAction,
+  FirewallCondition,
+  FirewallRecommendation,
+  RateLimitSpec,
+  RecommendOptions,
+  TrafficObservation
+} from './firewall.js'
 export type {
   BulkOffer,
   Entitlement,
