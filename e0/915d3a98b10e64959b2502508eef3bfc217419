@@ -1,0 +1,45 @@
+src/verify.ts
+  s_1a9eb32591b8d9::t_e86e2c121d242c 38-68
+  s_1a9eb32591b8d9::t_9e1a508b0445e4 21-23,26
+  s_1a9eb32591b8d9::t_c9f41582f79835 1-20,24-25,27-37,69-91,93-101,103-107,120,124-147
+  s_1a9eb32591b8d9::t_5cee2d898a5445 92,102,108-119,121-123
+test/verify.test.ts
+  s_1a9eb32591b8d9::t_7cd1efc85cee10 146,149-172
+  s_1a9eb32591b8d9::t_5298e65cbc433a 1-145,147-148,173-214
+package.json
+  s_1a9eb32591b8d9::t_d1cf8d3fd373a4 3
+src/types.ts
+  s_1a9eb32591b8d9::t_fa5108e9f5aa8b 61-77
+  s_1a9eb32591b8d9::t_079a29ce473a31 60
+src/track.ts
+  s_1a9eb32591b8d9::t_9b15f1bf8494ed 2,77-83
+  s_1a9eb32591b8d9::t_2614cda32559fc 54-56
+scripts/refresh-bot-ranges.mjs
+  s_1a9eb32591b8d9::t_226ced19c46423 1-116
+test/track.test.ts
+  s_1a9eb32591b8d9::t_dc7c07e8adacdc 423-484
+README.md
+  s_1a9eb32591b8d9::t_d1cf8d3fd373a4 309-384
+src/index.ts
+  s_1a9eb32591b8d9::t_2203c3405c8178 15-24
+src/cidr.ts
+  s_1a9eb32591b8d9::t_34ca702d669e8b 1-161
+src/bot-ranges.ts
+  s_1a9eb32591b8d9::t_924fd76c7f83f2 1-449
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "e0915d3a98b10e64959b2502508eef3bfc217419",
+  "prompts": {},
+  "sessions": {
+    "s_1a9eb32591b8d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4dba8408-d7ac-4810-87de-baf67324bf85",
+        "model": "claude-opus-5"
+      },
+      "human_author": "GJ <info@gertjandewilde.com>"
+    }
+  }
+}
