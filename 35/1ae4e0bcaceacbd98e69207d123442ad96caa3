@@ -1,0 +1,29 @@
+test/webbotauth.test.ts
+  s_1a9eb32591b8d9::t_15ea508e9144a7 221-225
+  s_1a9eb32591b8d9::t_44d6f4f64aacc9 1-220,226-240
+src/verify.ts
+  s_1a9eb32591b8d9::t_ac4f3cd7527979 162-208
+src/types.ts
+  s_1a9eb32591b8d9::t_ac4f3cd7527979 44
+src/track.ts
+  s_1a9eb32591b8d9::t_ac4f3cd7527979 83-85
+src/webbotauth.ts
+  s_1a9eb32591b8d9::t_d2579bad00549f 127,133-134,136,327
+  s_1a9eb32591b8d9::t_003a5b0867b803 1-126,128-132,135,137-326,328-364
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "351ae4e0bcaceacbd98e69207d123442ad96caa3",
+  "prompts": {},
+  "sessions": {
+    "s_1a9eb32591b8d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4dba8408-d7ac-4810-87de-baf67324bf85",
+        "model": "claude-opus-5"
+      },
+      "human_author": "GJ <info@gertjandewilde.com>"
+    }
+  }
+}
