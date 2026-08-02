@@ -21,12 +21,16 @@ export type AgentAction = 'allow' | 'meter' | 'charge' | 'block'
  *   and charging for it is charging for your own marketing.
  * - `'training'`  — bulk corpus collection for model training. You get nothing
  *   back per fetch, which is where a price makes sense.
- * - `'search'`    — classic index crawlers. Blocking these costs you SEO.
+ * - `'search'`    — index crawlers, traditional and AI-native. Blocking these
+ *   costs you organic traffic or citations in an assistant's answer.
+ * - `'preview'`   — link unfurlers. Someone pasted your URL into Slack, iMessage
+ *   or a tweet and the platform fetched it to render a card. No model involved,
+ *   but blocking it means your links look broken wherever they get shared.
  * - `'tooling'`   — coding agents and HTTP clients. Usually developers using
  *   your docs; treat like retrieval unless you see abuse.
  * - `'unknown'`   — everything else, including real browsers.
  */
-export type AgentIntent = 'retrieval' | 'training' | 'search' | 'tooling' | 'unknown'
+export type AgentIntent = 'retrieval' | 'training' | 'search' | 'preview' | 'tooling' | 'unknown'
 
 /**
  * User agents where a human is waiting on the answer. Deliberately explicit
@@ -39,8 +43,33 @@ const RETRIEVAL = /ChatGPT-User|OAI-SearchBot|Claude-User|Claude-SearchBot|Perpl
 /** Bulk crawlers that collect corpora. No human is waiting on these. */
 const TRAINING = /GPTBot|ClaudeBot|Claude-Web|CCBot|Bytespider|Amazonbot|Amzn-SearchBot|Meta-ExternalAgent|meta-externalfetcher|meta-webindexer|FacebookBot|Google-Extended|Applebot-Extended|AI2Bot|Diffbot|omgili|Webzio-Extended|Timpibot|PanguBot|cohere|DeepSeek|Grok|quillbot|MyCentralAIScraperBot|NovaAct|AzureAI-SearchBot|Google-CloudVertexBot/i
 
-/** Classic search indexers — blocking these costs you organic traffic. */
-const SEARCH = /bingbot|Googlebot|DuckDuckBot|YandexBot|Baiduspider|PetalBot|Sogou|Applebot(?!-Extended)/i
+/**
+ * Index crawlers — blocking these costs you organic traffic.
+ *
+ * `PerplexityBot` sits here rather than in TRAINING despite the `Bot` suffix:
+ * Perplexity documents it as the crawler behind their *search results* and
+ * states it does not feed foundation-model training. Blocking it costs you
+ * citations, which is the same shape of loss as blocking Googlebot. It was
+ * previously in no list at all, so it classified as `unknown` and fell through
+ * both the protective bypass and the training rate limit — a live gap found in
+ * production traffic, not in review.
+ */
+const SEARCH = /bingbot|Googlebot|DuckDuckBot|YandexBot|Baiduspider|PetalBot|Sogou|PerplexityBot|Bravebot|Applebot(?!-Extended)/i
+
+/**
+ * Link unfurlers. A human shared the URL and a platform fetched it to build a
+ * preview card — one request, no crawl, and the payoff is a rendered link in a
+ * conversation. They get their own intent rather than being folded into
+ * `retrieval` because retrieval is the library's demand signal: counting
+ * Slackbot as "an assistant went to read this for someone" would inflate the
+ * one number the split exists to measure.
+ *
+ * These tokens are trivially spoofable — `facebookexternalhit` is among the
+ * most-forged strings on the web. Treat this as a routing hint, never as
+ * identity, and note that {@link recommendFirewallRules} proposes them as a
+ * separate, higher-risk rule for exactly that reason.
+ */
+const PREVIEW = /facebookexternalhit|Twitterbot|LinkedInBot|Slackbot|Discordbot|TelegramBot|WhatsApp|redditbot|Pinterest|SkypeUriPreview|Iframely|Embedly|vkShare|Mastodon|Bluesky/i
 
 export interface AgentDecision {
   action: AgentAction
@@ -81,6 +110,11 @@ export interface AgentPolicyOptions {
   onRetrieval?: AgentAction
   /** What to do with search indexers. Defaults to `'allow'`. */
   onSearch?: AgentAction
+  /**
+   * What to do with link unfurlers. Defaults to `'allow'` — gating these does
+   * not earn you anything, it just makes your links render as bare URLs.
+   */
+  onPreview?: AgentAction
   /** What to do with coding agents and HTTP clients. Defaults to `'allow'`. */
   onTooling?: AgentAction
   /** Vendor labels or UA substrings always allowed, whatever the intent. */
@@ -105,6 +139,9 @@ export function agentIntent(userAgent: string | null | undefined): AgentIntent {
   if (RETRIEVAL.test(ua)) return 'retrieval'
   if (TRAINING.test(ua)) return 'training'
   if (SEARCH.test(ua)) return 'search'
+  // After SEARCH so Applebot stays a search crawler rather than an iMessage
+  // unfurler — Apple uses the same token for both.
+  if (PREVIEW.test(ua)) return 'preview'
   // An HTTP-library UA that matched no vendor is a coding agent or a script.
   if (isHttpClient(ua)) return 'tooling'
   return 'unknown'
@@ -165,14 +202,17 @@ export function agentPolicy(req: Request, opts: AgentPolicyOptions = {}): AgentD
         ? (opts.onRetrieval ?? 'allow')
         : intent === 'search'
           ? (opts.onSearch ?? 'allow')
-          : intent === 'tooling'
-            ? (opts.onTooling ?? 'allow')
-            : 'allow'
+          : intent === 'preview'
+            ? (opts.onPreview ?? 'allow')
+            : intent === 'tooling'
+              ? (opts.onTooling ?? 'allow')
+              : 'allow'
 
   const REASONS: Record<AgentIntent, string> = {
     retrieval: 'a person is waiting on this answer',
     training: 'bulk corpus collection',
     search: 'search index crawler',
+    preview: 'link unfurler building a preview card',
     tooling: 'coding agent or HTTP client',
     unknown: 'not a recognised agent'
   }

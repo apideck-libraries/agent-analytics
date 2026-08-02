@@ -14,8 +14,8 @@
       "note": "Opt-in payment surface."
     },
     "dist/firewall.js": {
-      "gzipBudget": 3200,
-      "note": "Offline analysis tool; never runs in middleware."
+      "gzipBudget": 4300,
+      "note": "Offline analysis tool; never runs in middleware, so size buys correctness cheaply here. Raised from 3200 for the distributed-pool rule class and the link-unfurler bypass."
     },
     "dist/markdown.js": {
       "gzipBudget": 1300,

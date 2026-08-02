@@ -142,6 +142,10 @@ describe('agentIntent and agentPolicy never disagree', () => {
     'Mozilla/5.0 (compatible; Googlebot/2.1)',
     'Mozilla/5.0 (compatible; Applebot/0.1)',
     'Mozilla/5.0 (compatible; Applebot-Extended/0.1)',
+    'Mozilla/5.0 (compatible; PerplexityBot/1.0)',
+    'Mozilla/5.0 (compatible; Perplexity-User/1.0)',
+    'facebookexternalhit/1.1',
+    'Slackbot-LinkExpanding 1.0',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36',
     '',
     'SomethingCompletelyUnknown/9'
@@ -159,5 +163,85 @@ describe('agentIntent and agentPolicy never disagree', () => {
     // path knew about HTTP clients.
     expect(agentIntent('curl/8.4.0')).toBe('tooling')
     expect(agentIntent('axios/1.8.4')).toBe('tooling')
+  })
+})
+
+describe('vendors that fell through every list', () => {
+  // Found in production traffic, not in review: 42 requests a day from
+  // PerplexityBot classified as `unknown`, which put it in no firewall rule at
+  // all — neither protected by the retrieval/search bypass nor bounded by the
+  // training rate limit. The `Bot` suffix reads like a corpus crawler, but
+  // Perplexity documents it as the crawler behind their search results.
+  it('classifies PerplexityBot as search, not unknown', () => {
+    expect(agentIntent('Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)')).toBe('search')
+  })
+
+  it('keeps Perplexity-User on retrieval — the tokens must not collide', () => {
+    expect(agentIntent('Mozilla/5.0 (compatible; Perplexity-User/1.0)')).toBe('retrieval')
+  })
+
+  it('never leaves a known agent in the intent gap', () => {
+    // Anything here that returns `unknown` is invisible to every generated
+    // rule. That is the actual failure mode, so assert the absence directly.
+    const KNOWN = [
+      'Mozilla/5.0 (compatible; PerplexityBot/1.0)',
+      'Mozilla/5.0 (compatible; Bravebot/1.0)',
+      'facebookexternalhit/1.1',
+      'Twitterbot/1.0',
+      'LinkedInBot/1.0',
+      'Slackbot-LinkExpanding 1.0',
+      'Discordbot/2.0',
+      'TelegramBot (like TwitterBot)',
+      'WhatsApp/2.23',
+      'redditbot/1.0'
+    ]
+    for (const ua of KNOWN) {
+      expect(agentIntent(ua), `${ua} is in no intent bucket`).not.toBe('unknown')
+    }
+  })
+})
+
+describe('link unfurlers', () => {
+  const UNFURLERS = [
+    ['facebookexternalhit/1.1', 'facebook'],
+    ['Twitterbot/1.0', 'twitter'],
+    ['LinkedInBot/1.0 (compatible; Mozilla/5.0)', 'linkedin'],
+    ['Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)', 'slack'],
+    ['Discordbot/2.0 (+https://discordapp.com)', 'discord'],
+    ['WhatsApp/2.23.20.0', 'whatsapp']
+  ] as const
+
+  it.each(UNFURLERS)('%s is preview', (ua) => {
+    expect(agentIntent(ua)).toBe('preview')
+  })
+
+  it('is allowed by default', () => {
+    const d = agentPolicy(
+      new Request('https://example.com/', { headers: { 'user-agent': 'Slackbot-LinkExpanding 1.0' } })
+    )
+    expect(d.action).toBe('allow')
+    expect(d.intent).toBe('preview')
+  })
+
+  it('honours onPreview', () => {
+    const d = agentPolicy(
+      new Request('https://example.com/', { headers: { 'user-agent': 'Discordbot/2.0' } }),
+      { onPreview: 'block' }
+    )
+    expect(d.action).toBe('block')
+  })
+
+  it('does not steal Applebot from search', () => {
+    // Apple uses one token for the search crawler and for iMessage previews.
+    // PREVIEW is tested after SEARCH so the crawler classification wins; if the
+    // order is ever flipped this catches it.
+    expect(agentIntent('Mozilla/5.0 (compatible; Applebot/0.1)')).toBe('search')
+  })
+
+  it('keeps preview out of the retrieval demand signal', () => {
+    // The whole point of a separate bucket: retrieval is what the library sells
+    // as demand. A Slack unfurl is not someone asking an assistant a question,
+    // and counting it as one inflates the headline number.
+    expect(agentIntent('Slackbot-LinkExpanding 1.0')).not.toBe('retrieval')
   })
 })

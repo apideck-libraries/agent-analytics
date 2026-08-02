@@ -156,8 +156,14 @@ Measured against real traffic shapes:
 serve  retrieval  allow   ChatGPT-User
 403    training   block   ClaudeBot from an unpublished IP
 402    training   charge  ClaudeBot from a real Anthropic IP
-serve  search     allow   Googlebot
+serve  search     allow   Googlebot, PerplexityBot
+serve  preview    allow   Slackbot, facebookexternalhit
 ```
+
+`preview` is its own intent rather than a flavour of `retrieval`: a link unfurl
+is a person pasting your URL into a conversation, not an assistant answering a
+question. Folding the two together would inflate the retrieval number, which is
+the one figure the split exists to measure.
 
 Settlement is never ours. `mppxGateway` wraps Stripe's MPP SDK; `x402Gateway`
 calls a facilitator you supply. The library emits challenges and reads
@@ -278,6 +284,26 @@ Only a failed verification earns a proposed `deny`. Every recommendation carries
 its `evidence`, a `risk` rating, and a `caveat` where over-blocking is plausible
 — the datacenter-ASN rule is marked `high` risk because corporate VPNs and
 privacy relays egress from hosting networks.
+
+### Pools that no per-address threshold catches
+
+A rotating proxy pool is built so that no single address looks abusive. Measured
+on one production site: 34 addresses across 11 countries, one user agent each,
+the heaviest doing 100 requests in a day — every one invisible to a per-address
+threshold, while collectively sweeping the site.
+
+Volume cannot separate that from real readers, so the burst rule keys on *rate*,
+which needs `spanSeconds` on your observations:
+
+```ts
+{ ip: '104.28.233.73', requests: 31, distinctPaths: 16, spanSeconds: 1 }
+// → 1,860 requests/min. Not a person.
+```
+
+The rule is only safe because its condition excludes static assets. The WAF sees
+every request; the middleware that produced your observations probably does not,
+so a naive limit on `Mozilla` throttles a real visitor on their first page view.
+Override `assetExclusions` if your app does not serve assets from `/_next/`.
 
 See [`docs/TESTING-PAYMENTS.md`](./docs/TESTING-PAYMENTS.md) for testing the
 payment path end to end.
