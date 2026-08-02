@@ -44,12 +44,31 @@ export function posthogAnalytics(config: PostHogAdapterConfig): AnalyticsAdapter
 
   return {
     async capture(event: CaptureEvent): Promise<void> {
+      // PostHog runs its own user-agent and GeoIP enrichment, but only off its
+      // canonical property names. We already carry both values under our own
+      // keys, so mirroring them costs nothing and unlocks a free second opinion:
+      // getTrafficCategory(), getBotName() and friends all read
+      // `properties.$raw_user_agent`, and GeoIP reads `properties.$ip`.
+      //
+      // Without this every event arrives with traffic category `no_user_agent`
+      // and PostHog's whole bot taxonomy sits dormant — which is exactly what
+      // happened on ours until someone queried it.
+      //
+      // `$ip` is mirrored only when the caller already opted into `captureIp`.
+      // Adding it otherwise would put a raw address on the event that the
+      // caller deliberately kept off.
+      const ua = event.properties.user_agent
+      const ip = event.properties.client_ip
       const payload = {
         api_key: config.apiKey,
         event: event.event,
         distinct_id: event.distinctId,
         timestamp: event.timestamp,
-        properties: event.properties
+        properties: {
+          ...event.properties,
+          ...(typeof ua === 'string' && ua ? { $raw_user_agent: ua } : {}),
+          ...(typeof ip === 'string' && ip ? { $ip: ip } : {})
+        }
       }
       // A 401 from a mistyped key used to look identical to success. Surface
       // it: `trackVisit` routes it to `onError` and still never throws into

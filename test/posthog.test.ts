@@ -139,3 +139,50 @@ describe('posthogAnalytics', () => {
     ).rejects.toThrow('network down')
   })
 })
+
+describe('PostHog enrichment properties', () => {
+  async function send(properties: Record<string, unknown>) {
+    let body: any
+    const adapter = posthogAnalytics({
+      apiKey: 'k',
+      fetchImpl: async (_u, init) => {
+        body = JSON.parse(String(init?.body))
+        return new Response('ok')
+      }
+    })
+    await adapter.capture({
+      event: 'agent_visit',
+      distinctId: 'anon_1',
+      timestamp: new Date().toISOString(),
+      properties
+    })
+    return body.properties
+  }
+
+  it('mirrors the user agent to $raw_user_agent', async () => {
+    // PostHog's getTrafficCategory / getBotName read this exact property. Send
+    // the UA only under our own key and its entire bot taxonomy stays dormant,
+    // reporting `no_user_agent` on every event.
+    const p = await send({ user_agent: 'Mozilla/5.0 (compatible; GPTBot/1.1)' })
+    expect(p.$raw_user_agent).toBe('Mozilla/5.0 (compatible; GPTBot/1.1)')
+    expect(p.user_agent).toBe('Mozilla/5.0 (compatible; GPTBot/1.1)')
+  })
+
+  it('mirrors client_ip to $ip only when captureIp put it there', async () => {
+    // GeoIP reads $ip. Without it PostHog geolocates whichever edge PoP relayed
+    // the event, not the client.
+    expect((await send({ user_agent: 'x', client_ip: '203.0.113.9' })).$ip).toBe('203.0.113.9')
+  })
+
+  it('never invents $ip when the caller kept the address off the event', async () => {
+    // captureIp defaults to false. Adding $ip anyway would put a raw address on
+    // an event the caller deliberately anonymised.
+    const p = await send({ user_agent: 'Mozilla/5.0 (compatible; GPTBot/1.1)' })
+    expect('$ip' in p).toBe(false)
+  })
+
+  it('omits $raw_user_agent when there is no user agent to mirror', async () => {
+    const p = await send({ user_agent: '', bot_name: 'Other' })
+    expect('$raw_user_agent' in p).toBe(false)
+  })
+})
