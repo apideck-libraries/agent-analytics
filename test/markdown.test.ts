@@ -40,13 +40,39 @@ describe('markdownServeDecision', () => {
     ).toBeNull()
   })
 
-  it('prefers ua-rewrite over md-suffix when both match', () => {
+  it('strips the .md suffix even when the UA is a known bot', () => {
+    // This previously asserted the opposite, pinning a real bug: the UA branch
+    // returned before the suffix was stripped, so a bot following one of the
+    // `.md` links this library advertises got '/docs/intro.md' back, and any
+    // caller building `/md${strippedPath}.md` requested '/md/docs/intro.md.md'
+    // and silently fell through to a pointer document.
     const d = markdownServeDecision(
       req('https://example.com/docs/intro.md', { 'user-agent': 'ClaudeBot/1.0' })
     )
+    expect(d?.strippedPath).toBe('/docs/intro')
+    // An explicit suffix is the more specific signal, so it wins the label.
+    expect(d?.reason).toBe('md-suffix')
+  })
+
+  it('reports ua-rewrite for a bot on the plain HTML URL', () => {
+    const d = markdownServeDecision(
+      req('https://example.com/docs/intro', { 'user-agent': 'ClaudeBot/1.0' })
+    )
     expect(d?.reason).toBe('ua-rewrite')
-    // UA branch doesn't strip the suffix — the strippedPath is the raw pathname.
-    expect(d?.strippedPath).toBe('/docs/intro.md')
+    expect(d?.strippedPath).toBe('/docs/intro')
+  })
+
+  it('never leaves a .md extension on strippedPath, whichever branch matched', () => {
+    const cases: Array<[string, Record<string, string>]> = [
+      ['https://example.com/a/b.md', { 'user-agent': 'GPTBot/1.1' }],
+      ['https://example.com/a/b.md', { 'user-agent': 'curl/8.4.0' }],
+      ['https://example.com/a/b.md', { accept: 'text/markdown' }],
+      ['https://example.com/a/b.md', {}]
+    ]
+    for (const [url, headers] of cases) {
+      const d = markdownServeDecision(req(url, headers))
+      expect(d?.strippedPath, `${url} ${JSON.stringify(headers)}`).toBe('/a/b')
+    }
   })
 
   it('detects Accept: text/markdown even when other media types are listed', () => {

@@ -55,8 +55,13 @@ export interface BotVerification {
  * fetches a month. The distinction is per *product*, not per vendor, and not
  * inferable from a `-User` suffix — OpenAI's ChatGPT-User fetches server-side
  * from Azure and verifies at ~99%.
+ *
+ * Only products belonging to a vendor we hold ranges for need listing here.
+ * Cursor, Windsurf, Cline and Aider were previously included but were dead
+ * branches: their vendors publish no feed, so they exit earlier as
+ * 'no-published-ranges' or 'not-claimed' and never reach this test.
  */
-const CLIENT_SIDE_AGENT_PATTERN = /claude-code|perplexity-user|cursor|windsurf|cline|aider/i
+const CLIENT_SIDE_AGENT_PATTERN = /claude-code|perplexity-user/i
 
 /**
  * Products known to fetch server-side from ranges the vendor publishes. Only
@@ -66,10 +71,19 @@ const CLIENT_SIDE_AGENT_PATTERN = /claude-code|perplexity-user|cursor|windsurf|c
 const SERVER_SIDE_CRAWLER_PATTERN =
   /ClaudeBot|Claude-SearchBot|GPTBot|OAI-SearchBot|ChatGPT-User|PerplexityBot|Applebot/i
 
-// Compile each vendor's ranges once at module load rather than per request.
-const COMPILED: Record<string, CompiledRanges> = {}
-for (const vendor of VERIFIABLE_VENDORS) {
-  COMPILED[vendor] = compileRanges(BOT_IP_RANGES[vendor] ?? [])
+// Compiled on first use per vendor, not at module load. Eagerly parsing all
+// 412 prefixes cost cold-start CPU on every request path that imported this
+// module, including the majority that never verify anything.
+const COMPILED = new Map<string, CompiledRanges>()
+
+function rangesFor(vendor: string): CompiledRanges | undefined {
+  if (!(vendor in BOT_IP_RANGES)) return undefined
+  let c = COMPILED.get(vendor)
+  if (!c) {
+    c = compileRanges(BOT_IP_RANGES[vendor] ?? [])
+    COMPILED.set(vendor, c)
+  }
+  return c
 }
 
 /** Vendor labels this build can produce a verified/spoofed verdict for. */
@@ -91,7 +105,7 @@ export function verifyBotIdentity(
 ): BotVerification {
   const ua = userAgent ?? ''
   const claimed = parseBotName(userAgent)
-  const ranges = COMPILED[claimed]
+  const ranges = rangesFor(claimed)
 
   if (!ranges) {
     // Either not a crawler at all, or a crawler with no published feed. Both

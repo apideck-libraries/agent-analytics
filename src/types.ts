@@ -9,8 +9,39 @@ export interface AnalyticsAdapter {
   capture(event: CaptureEvent): Promise<void> | void
 }
 
+export interface BotVerificationLike {
+  verdict: string
+  verified: boolean | null
+  reason?: string
+}
+
 export interface TrackVisitOptions {
   analytics: AnalyticsAdapter
+  /**
+   * Secret used to key the `distinctId` HMAC. Falls back to
+   * `AGENT_ANALYTICS_ID_SECRET`, then to a random per-instance value.
+   *
+   * Identifiers only correlate across instances and deploys when this is
+   * stable, and only stay non-reversible while it stays secret — the user agent
+   * ships in plaintext on the same event, so anyone holding the secret can
+   * recover the client IP by brute force.
+   */
+  idSecret?: string
+  /**
+   * Called when capture fails — a rejected adapter, a non-2xx from the
+   * analytics backend, a malformed request. Errors never propagate to the
+   * response path, so without this a wrong API key is silent.
+   */
+  onError?: (error: Error) => void
+  /**
+   * Identity verifier. Import `verifyRequest` from
+   * `@apideck/agent-analytics/verify` and pass it here to add
+   * `bot_verification` to the event.
+   *
+   * Injected rather than imported so the published IP range tables — the
+   * largest thing in the package — only reach bundles that use them.
+   */
+  verify?: (req: Request) => BotVerificationLike
   /**
    * Label describing how the request arrived (e.g. `'page-view'`, `'md-suffix'`,
    * `'ua-rewrite'`). Emitted as a `source` property on the captured event so
@@ -74,7 +105,6 @@ export interface TrackVisitOptions {
    * currently OpenAI, Anthropic, Perplexity, and Apple. Everything else yields
    * `unverifiable`, never `spoofed`.
    */
-  verifyIdentity?: boolean
   /**
    * When `true`, emit `region`, `city`, `latitude`, `longitude`, and
    * `timezone` derived from Vercel's `x-vercel-ip-*` edge headers. Values

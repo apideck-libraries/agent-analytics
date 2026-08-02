@@ -1,4 +1,6 @@
 import type { AnalyticsAdapter, CaptureEvent } from '../types.js'
+import { CaptureTransportError } from '../errors.js'
+
 
 export interface PostHogAdapterConfig {
   /** PostHog project API key (the public one used by the JS SDK). */
@@ -19,6 +21,12 @@ export interface PostHogAdapterConfig {
    * that need a pinned fetch).
    */
   fetchImpl?: typeof fetch
+  /**
+   * Abort the capture after this many milliseconds. Defaults to 3000. Without
+   * a bound, a hung backend leaves a pending promise for the lifetime of an
+   * edge invocation.
+   */
+  timeoutMs?: number
 }
 
 /**
@@ -43,12 +51,23 @@ export function posthogAnalytics(config: PostHogAdapterConfig): AnalyticsAdapter
         timestamp: event.timestamp,
         properties: event.properties
       }
-      await fetchImpl(endpoint, {
+      // A 401 from a mistyped key used to look identical to success. Surface
+      // it: `trackVisit` routes it to `onError` and still never throws into
+      // the response path.
+      const res = await fetchImpl(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        keepalive: true
+        keepalive: true,
+        signal: AbortSignal.timeout(config.timeoutMs ?? 3000)
       })
+      if (!res.ok) {
+        throw new CaptureTransportError(
+          `PostHog capture failed: ${res.status} ${res.statusText}`,
+          res.status,
+          await res.text().catch(() => undefined)
+        )
+      }
     }
   }
 }

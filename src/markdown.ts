@@ -36,18 +36,26 @@ export function markdownServeDecision(req: Request): MarkdownDecision | null {
     pathname = req.url || '/'
   }
 
+  // Strip once, up front. Stripping only inside the md-suffix branch meant an
+  // AI bot following a `.md` link — the very links this library advertises via
+  // `Link: rel="alternate"` and llms.txt — matched `ua-rewrite` first and kept
+  // the extension, so callers building `/md${strippedPath}.md` requested
+  // `/md/docs/intro.md.md` and silently fell back to a pointer document.
+  const hasSuffix = pathname.endsWith('.md')
+  const strippedPath = hasSuffix ? pathname.slice(0, -3) : pathname
+
   const ua = req.headers.get('user-agent') || ''
   if (isAiBot(ua)) {
-    return { reason: 'ua-rewrite', strippedPath: pathname }
+    return { reason: hasSuffix ? 'md-suffix' : 'ua-rewrite', strippedPath }
   }
 
-  if (pathname.endsWith('.md')) {
-    return { reason: 'md-suffix', strippedPath: pathname.replace(/\.md$/, '') }
+  if (hasSuffix) {
+    return { reason: 'md-suffix', strippedPath }
   }
 
   const accept = req.headers.get('accept') || ''
   if (accept.includes('text/markdown')) {
-    return { reason: 'accept-header', strippedPath: pathname }
+    return { reason: 'accept-header', strippedPath }
   }
 
   return null

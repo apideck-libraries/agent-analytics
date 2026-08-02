@@ -82,6 +82,55 @@ Now you can build:
 
 ---
 
+## Upgrading to 0.12
+
+Four breaking changes, all deliberate. Each one existed because the previous
+behaviour was wrong in a way that failed quietly.
+
+**`distinctId` is now keyed.** The old identifier was an unsalted 32-bit djb2
+over `ip:userAgent`. Since the user agent ships in plaintext on the same event,
+only the IP had to be searched — a laptop recovered a residential address in
+75 seconds. Set `idSecret` (or `AGENT_ANALYTICS_ID_SECRET`) to a stable secret;
+without one, a random per-instance secret is used, which stays private but
+means ids no longer correlate across instances. Existing ids will not match the
+new ones either way.
+
+```diff
+- void trackVisit(req, { analytics })
++ void trackVisit(req, { analytics, idSecret: process.env.AGENT_ANALYTICS_ID_SECRET })
+```
+
+**`verifyIdentity: true` is replaced by an injected verifier.** The published
+IP range tables are the largest thing in the package, and importing them from
+the root entry shipped them to every consumer whether or not they verified
+anything. They now live behind `@apideck/agent-analytics/verify`.
+
+```diff
+- void trackVisit(req, { analytics, verifyIdentity: true })
++ import { verifyRequest } from '@apideck/agent-analytics/verify'
++ void trackVisit(req, { analytics, verify: verifyRequest })
+```
+
+**Caller `properties` no longer override computed fields.** They were spread
+last, so `properties: { path }` silently replaced the real path and
+`properties: { is_ai_bot }` could contradict the classification on the same
+event. Non-colliding keys are unaffected.
+
+**Headless automation is labelled `Headless`, not `Browser`.** A browser user
+agent with headless headers accounted for 79% of one production site's agent
+traffic, and calling it `Browser` hid it behind the obvious
+`bot_name != 'Browser'` filter. `headless_score` and `headless_likely` are now
+omitted on declared crawlers and HTTP clients, where they fired on 99% of
+events and carried no signal.
+
+### Also in 0.12
+
+- Adapters surface non-2xx responses as `CaptureTransportError` instead of
+  swallowing them. Pass `onError` to `trackVisit` to see them; capture still
+  never throws into the response path.
+- Outbound captures carry a 3s `AbortSignal` (`timeoutMs` to change it).
+- Root bundle is 65% smaller (27.7 kB → 9.6 kB, 3.8 kB gzipped).
+
 ## Install
 
 ```bash

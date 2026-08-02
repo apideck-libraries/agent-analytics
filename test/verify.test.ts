@@ -208,7 +208,74 @@ describe('bundled ranges', () => {
       const compiled = compileRanges(cidrs)
       // Every entry must survive compilation — a silently dropped prefix means
       // real crawler traffic from that block gets marked spoofed.
-      expect(compiled.v4.length + compiled.v6.length, `${vendor} dropped entries`).toBe(cidrs.length)
+      let v4Count = compiled.v4Wide.length
+      for (const bucket of compiled.v4.values()) v4Count += bucket.length
+      expect(v4Count + compiled.v6.length, `${vendor} dropped entries`).toBe(cidrs.length)
+    }
+  })
+})
+
+describe('bucketed IPv4 lookup', () => {
+  it('agrees with a naive linear scan across every bundled prefix', () => {
+    // The bucketing optimisation must be behaviour-preserving. Check every
+    // published prefix plus the addresses either side of each boundary against
+    // an independent brute-force implementation.
+    const naive = (ip: string, cidrs: readonly string[]) =>
+      cidrs.some((c) => {
+        const [addr, bitsRaw] = c.split('/')
+        if (addr!.includes(':')) return false
+        const bits = Number(bitsRaw)
+        const toInt = (s: string) =>
+          s.split('.').reduce((a, o) => ((a << 8) | Number(o)) >>> 0, 0) >>> 0
+        const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0
+        return ((toInt(ip) & mask) >>> 0) === ((toInt(addr!) & mask) >>> 0)
+      })
+
+    for (const [vendor, cidrs] of Object.entries(BOT_IP_RANGES)) {
+      const compiled = compileRanges(cidrs)
+      for (const cidr of cidrs) {
+        const [addr, bitsRaw] = cidr.split('/')
+        if (addr!.includes(':')) continue
+        const bits = Number(bitsRaw)
+        const base = addr!.split('.').reduce((a, o) => ((a << 8) | Number(o)) >>> 0, 0) >>> 0
+        const size = bits === 32 ? 1 : 2 ** (32 - bits)
+        const fmt = (n: number) =>
+          [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.')
+        // first inside, last inside, one below, one above
+        for (const probe of [base, base + size - 1, base - 1, base + size]) {
+          if (probe < 0 || probe > 0xffffffff) continue
+          const ip = fmt(probe >>> 0)
+          expect(ipInRanges(ip, compiled), `${vendor} ${cidr} probe ${ip}`).toBe(naive(ip, cidrs))
+        }
+      }
+    }
+  })
+
+  it('still matches wide prefixes that span many buckets', () => {
+    const wide = compileRanges(['10.0.0.0/7', '0.0.0.0/0'])
+    expect(ipInRanges('10.255.255.255', wide)).toBe(true)
+    expect(ipInRanges('11.0.0.1', wide)).toBe(true)
+    expect(ipInRanges('8.8.8.8', wide)).toBe(true) // via /0
+  })
+
+  it('compiles lazily — repeated verification reuses the same tables', () => {
+    // Regression guard for the module-load compilation this replaced.
+    const first = verifyBotIdentity('ClaudeBot/1.0', '34.162.230.222')
+    const second = verifyBotIdentity('ClaudeBot/1.0', '34.162.230.222')
+    expect(first.verdict).toBe('verified')
+    expect(second.verdict).toBe('verified')
+  })
+})
+
+describe('client-side agent list has no dead entries', () => {
+  it('only lists products whose vendor actually has published ranges', () => {
+    // Cursor/Windsurf/Cline/Aider were listed but unreachable: their vendors
+    // publish no feed, so they exit earlier as no-published-ranges.
+    for (const ua of ['Cursor/1.0', 'Windsurf/1.0']) {
+      expect(verifyBotIdentity(ua, '1.2.3.4').reason).toBe('no-published-ranges')
+    }
+    for (const ua of ['Claude-User (claude-code/2.1.218)', 'Perplexity-User/1.0']) {
+      expect(verifyBotIdentity(ua, '1.2.3.4').reason).toBe('client-side-agent')
     }
   })
 })

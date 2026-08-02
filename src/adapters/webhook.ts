@@ -1,4 +1,5 @@
 import type { AnalyticsAdapter, CaptureEvent } from '../types.js'
+import { CaptureTransportError } from '../errors.js'
 
 export interface WebhookAdapterConfig {
   /** Destination URL that receives a POST for each event. */
@@ -12,6 +13,8 @@ export interface WebhookAdapterConfig {
   transform?: (event: CaptureEvent) => unknown
   /** Override the `fetch` implementation. */
   fetchImpl?: typeof fetch
+  /** Abort the capture after this many milliseconds. Defaults to 3000. */
+  timeoutMs?: number
 }
 
 /**
@@ -26,15 +29,23 @@ export function webhookAnalytics(config: WebhookAdapterConfig): AnalyticsAdapter
 
   return {
     async capture(event: CaptureEvent): Promise<void> {
-      await fetchImpl(config.url, {
+      const res = await fetchImpl(config.url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(config.headers ?? {})
         },
         body: JSON.stringify(transform(event)),
-        keepalive: true
+        keepalive: true,
+        signal: AbortSignal.timeout(config.timeoutMs ?? 3000)
       })
+      if (!res.ok) {
+        throw new CaptureTransportError(
+          `Webhook capture failed: ${res.status} ${res.statusText}`,
+          res.status,
+          await res.text().catch(() => undefined)
+        )
+      }
     }
   }
 }
