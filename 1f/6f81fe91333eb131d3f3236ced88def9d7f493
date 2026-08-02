@@ -1,0 +1,19 @@
+.github/workflows/refresh-bot-ranges.yml
+  s_1a9eb32591b8d9::t_a7e9a559bc789f 1-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "1f6f81fe91333eb131d3f3236ced88def9d7f493",
+  "prompts": {},
+  "sessions": {
+    "s_1a9eb32591b8d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4dba8408-d7ac-4810-87de-baf67324bf85",
+        "model": "claude-opus-5"
+      },
+      "human_author": "GJ <info@gertjandewilde.com>"
+    }
+  }
+}
