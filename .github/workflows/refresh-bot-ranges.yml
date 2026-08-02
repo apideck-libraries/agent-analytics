@@ -1,0 +1,90 @@
+name: Refresh bot IP ranges
+
+# Vendors rotate their published crawler ranges. A stale snapshot in
+# src/bot-ranges.ts doesn't fail loudly — it quietly starts returning 'spoofed'
+# for legitimate crawlers, and 'spoofed' is the verdict people act on. So this
+# runs weekly and opens a PR whenever the upstream feeds have moved.
+#
+# It deliberately does NOT commit straight to main: a range change alters what
+# downstream sites report about real traffic, so a human should see the diff.
+
+on:
+  schedule:
+    # Mondays 06:00 UTC — early enough that a drift PR is waiting at the start
+    # of the week, and well clear of the vendors' own publish cadence.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: refresh-bot-ranges
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+
+      # The script throws on a failed feed or a list that shrinks by more than
+      # half, so a partial fetch aborts here rather than writing a truncated
+      # snapshot that would brand real crawlers as impostors.
+      - name: Fetch published ranges
+        run: node scripts/refresh-bot-ranges.mjs
+
+      # BOT_RANGES_CAPTURED_AT changes on every run, so it alone is not a
+      # meaningful diff — only open a PR when the actual prefixes moved.
+      - name: Check whether any prefixes changed
+        id: diff
+        run: |
+          if git diff --quiet -- src/bot-ranges.ts; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes to bot ranges."
+          elif [ -z "$(git diff -U0 -- src/bot-ranges.ts | grep -E '^[+-] ' | grep -v BOT_RANGES_CAPTURED_AT)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Only the capture timestamp moved — discarding."
+            git checkout -- src/bot-ranges.ts
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Guard against a bad feed shipping a snapshot that fails our own tests
+      # (the suite asserts every bundled prefix compiles).
+      - name: Verify the new snapshot still passes
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Open a PR
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/refresh-bot-ranges
+          base: main
+          delete-branch: true
+          commit-message: 'chore: refresh published bot IP ranges'
+          title: 'chore: refresh published bot IP ranges'
+          body: |
+            Automated weekly refresh of `src/bot-ranges.ts` from the vendors'
+            published crawler feeds.
+
+            **Review the prefix diff before merging.** Ranges that disappear
+            upstream will start producing `spoofed` verdicts for traffic that
+            was previously `verified`, so a large removal is worth a second
+            look rather than a reflex merge.
+
+            The refresh script already refuses to write a list that shrinks by
+            more than half or when any feed errors, and the test suite has run
+            against this snapshot.
+
+            Merging does not publish — bump `package.json` separately when you
+            want the new ranges to reach consumers.
