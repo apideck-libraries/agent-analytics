@@ -14,6 +14,14 @@ export type { AgentClassification, AgentKind, HeadlessDetection } from './bots.j
 export { hashId, randomSecret, HashSecretError } from './hash.js'
 export { CaptureTransportError } from './errors.js'
 export { agentIntent, agentPolicy } from './policy.js'
+export {
+  hasPaymentPayload,
+  paymentPayload,
+  paymentRequired,
+  respondToDecision,
+  withSettlement
+} from './payments.js'
+export type { PaymentChallengeOptions, PaymentRequirements } from './payments.js'
 export type {
   AgentAction,
   AgentDecision,
