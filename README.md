@@ -92,24 +92,62 @@ Now you can build:
 > yet presented a payment credential. Detection, verification and policy are
 > stable; this is not. Do not put it on a revenue-critical path yet.
 
-Over 2.5 million sites answer bulk AI crawling with `Disallow`. That leaves
-money on the table and only works if the crawler cooperates. The alternative is
-to price it — which only works if you can tell training from retrieval, because
-charging a `ChatGPT-User` fetch means charging the person who just asked about
-you.
+### Meter first. Charge later, if at all.
+
+Per-request 402 is what x402 and MPP define, and it is the wrong shape for a
+training sweep. On one production site that is ~199,000 training requests a
+month: three times the traffic once you add pay-and-retry, 199,000 settlements
+whose per-transaction cost exceeds any sane per-page price, and — decisively —
+**no crawler in the wild retries a 402**. Charging per request is blocking with
+extra steps.
+
+So start by counting:
 
 ```ts
-import { paymentGate, x402Gateway } from '@apideck/agent-analytics'
+import { paymentGate } from '@apideck/agent-analytics'
 import { combinedVerifier } from '@apideck/agent-analytics/verify'
 
 const gate = await paymentGate(req, {
-  onTraining: 'charge',
   verify: combinedVerifier(),
-  gateway: x402Gateway({ challenges: [...], settle: myFacilitator })
+  meter: { record: (e) => warehouse.insert(e) } // training only
 })
 if (gate.response) return gate.response
 return gate.decorate(await serve(req))
 ```
+
+`meter` fires only for training traffic. Retrieval and search are served free
+and never counted, because charging the channel that sends you readers is the
+one outcome this design exists to prevent.
+
+### Then sell a licence, not a page
+
+When you know the number, switch to an entitlement: one 402 advertising a bulk
+offer, one settlement, a reusable credential.
+
+```ts
+import { entitlementGateway } from '@apideck/agent-analytics'
+
+const gate = await paymentGate(req, {
+  onTraining: 'charge',
+  gateway: entitlementGateway({
+    store: myKV,                    // lookup + consume; quota state is yours
+    offer: { units: 1_000_000, unit: 'pages', validForSeconds: 2_592_000, price: '$400' },
+    challenges: [{ protocol: 'mpp', id, realm: 'example.com', method: 'tempo' }]
+  })
+})
+```
+
+```
+402  once, advertising the licence
+200  every request after, quota −1
+402  again when it runs out
+```
+
+Unknown, expired and exhausted credentials all return the same challenge —
+distinguishing them would turn the endpoint into an oracle for probing quota.
+
+MPP's reusable `Authorization: Payment` credential suits this better than
+x402's per-resource signature, which proves payment for a single URL.
 
 Measured against real traffic shapes:
 

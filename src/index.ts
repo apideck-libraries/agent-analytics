@@ -15,8 +15,17 @@ export { hashId, randomSecret, HashSecretError } from './hash.js'
 export { CaptureTransportError } from './errors.js'
 export { agentIntent, agentPolicy } from './policy.js'
 export { mppxGateway, paymentGate, x402Gateway } from './gateway.js'
+export { entitlementGateway, memoryEntitlementStore } from './entitlement.js'
+export type {
+  BulkOffer,
+  Entitlement,
+  EntitlementGatewayOptions,
+  EntitlementStore
+} from './entitlement.js'
 export type {
   GatewayResult,
+  Meter,
+  MeterRecord,
   MppxResponse,
   PaymentGateOptions,
   PaymentGateway,

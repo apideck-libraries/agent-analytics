@@ -100,8 +100,37 @@ export function x402Gateway(opts: X402GatewayOptions): PaymentGateway {
   }
 }
 
+/** One unit of billable agent traffic. */
+export interface MeterRecord {
+  decision: AgentDecision
+  /** Units consumed. One request is one unit unless you price by bytes or tokens. */
+  units: number
+  path: string
+  method: string
+}
+
+/**
+ * Where billable usage goes.
+ *
+ * Metering is the model to ship first: it needs no crawler cooperation, works
+ * today, and produces the number you would negotiate a licence with. Charging
+ * per request is what the protocols define but not what a training sweep can
+ * actually do — no crawler in the wild retries a 402.
+ */
+export interface Meter {
+  record(entry: MeterRecord): Promise<void> | void
+}
+
 export interface PaymentGateOptions extends Omit<AgentPolicyOptions, 'verify'> {
   gateway: PaymentGateway
+  /**
+   * Sink for billable traffic. Called for every `'meter'` decision — serve the
+   * request, count it, bill out of band.
+   *
+   * Errors are swallowed: a metering failure must not turn into a failed
+   * response, for the same reason analytics failures do not.
+   */
+  meter?: Meter
   /**
    * Identity verifier, sync or async. Unlike {@link agentPolicy}'s option this
    * accepts a promise, because `paymentGate` is already async and can await it.
@@ -148,7 +177,7 @@ export async function paymentGate(
   /** Wrap the response you were going to send. Identity when nothing to add. */
   decorate: (res: Response) => Response
 }> {
-  const { gateway, onDecision, verify, ...policyOpts } = opts
+  const { gateway, onDecision, verify, meter, ...policyOpts } = opts
   // Await here so an async verifier works. Passing the function straight into
   // agentPolicy would hand it a promise to read `.verdict` off — undefined at
   // runtime, and a type error at compile time.
@@ -169,6 +198,23 @@ export async function paymentGate(
       }),
       decorate: identity
     }
+  }
+
+  if (decision.action === 'meter') {
+    // Count it and serve it. This is the path most sites should be on.
+    try {
+      let path = req.url
+      let method = req.method
+      try {
+        path = new URL(req.url).pathname
+      } catch {
+        /* relative URL from some runtimes — keep the raw string */
+      }
+      await meter?.record({ decision, units: 1, path, method })
+    } catch {
+      // Metering must never turn into a failed response.
+    }
+    return { decision, response: null, decorate: identity }
   }
 
   if (decision.action !== 'charge') {
