@@ -1,0 +1,28 @@
+test/entitlement.test.ts
+  s_1a9eb32591b8d9::t_ba32028801de45 1-184
+src/entitlement.ts
+  s_1a9eb32591b8d9::t_3ed925c9280ea7 1-187
+src/gateway.ts
+  s_1a9eb32591b8d9::t_22ca837594a47a 103-123,126-133,180,203-217
+  s_1a9eb32591b8d9::t_e9434c97ac0a91 218-219
+src/index.ts
+  s_1a9eb32591b8d9::t_22ca837594a47a 18-24,27-28
+README.md
+  s_1a9eb32591b8d9::t_eb7d880506c641 95-104,107,112,118-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "553d366ab5b096be89cc45a8c68404c29e097a91",
+  "prompts": {},
+  "sessions": {
+    "s_1a9eb32591b8d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4dba8408-d7ac-4810-87de-baf67324bf85",
+        "model": "claude-opus-5"
+      },
+      "human_author": "GJ <info@gertjandewilde.com>"
+    }
+  }
+}
