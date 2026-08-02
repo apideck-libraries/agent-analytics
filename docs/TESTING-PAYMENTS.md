@@ -21,7 +21,7 @@ npm i @apideck/agent-analytics
 
 ```js
 // pay.mjs
-import { paymentGate, entitlementGateway, memoryEntitlementStore } from '@apideck/agent-analytics'
+import { paymentGate, entitlementGateway, memoryEntitlementStore } from '@apideck/agent-analytics/payments'
 import { combinedVerifier } from '@apideck/agent-analytics/verify'
 
 const store = memoryEntitlementStore({ lic_abc: { id: 'lic_abc', remaining: 3 } })
@@ -72,7 +72,7 @@ prove:** that any real agent understands the challenge.
 ### Inspect the challenge
 
 ```js
-import { paymentRequired } from '@apideck/agent-analytics'
+import { paymentRequired } from '@apideck/agent-analytics/payments'
 
 const res = paymentRequired({
   challenges: [
@@ -101,7 +101,7 @@ Wire the gate into middleware, then drive it with user agents.
 ```ts
 // middleware.ts
 import { NextResponse, type NextRequest } from 'next/server'
-import { paymentGate, entitlementGateway } from '@apideck/agent-analytics'
+import { paymentGate, entitlementGateway } from '@apideck/agent-analytics/payments'
 import { combinedVerifier } from '@apideck/agent-analytics/verify'
 
 const gateway = entitlementGateway({
@@ -206,7 +206,7 @@ Stripe's SDK generates challenges and settles; wrap it rather than
 reimplementing.
 
 ```ts
-import { mppxGateway } from '@apideck/agent-analytics'
+import { mppxGateway } from '@apideck/agent-analytics/payments'
 
 const mppx = Mppx.create({ methods: [...], secretKey })
 const handler = Mppx.compose(
