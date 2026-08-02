@@ -1,0 +1,27 @@
+src/index.ts
+  s_1a9eb32591b8d9::t_2211907fa6956d 19-27
+test/firewall.test.ts
+  s_1a9eb32591b8d9::t_2211907fa6956d 1-154
+docs/TESTING-PAYMENTS.md
+  s_1a9eb32591b8d9::t_28fefc635f0f86 1-261
+src/firewall.ts
+  s_1a9eb32591b8d9::t_2e77c9bc7bf9c7 1-370
+README.md
+  s_1a9eb32591b8d9::t_d6bf2789f6110a 254-284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "37c387d8123b3b5aae014b333e39d1c6b698a29b",
+  "prompts": {},
+  "sessions": {
+    "s_1a9eb32591b8d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4dba8408-d7ac-4810-87de-baf67324bf85",
+        "model": "claude-opus-5"
+      },
+      "human_author": "GJ <info@gertjandewilde.com>"
+    }
+  }
+}
