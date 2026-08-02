@@ -1,4 +1,4 @@
-import { classifyRequest } from './bots.js'
+import { classifyRequest, isHttpClient } from './bots.js'
 import type { BotVerificationLike } from './types.js'
 
 /**
@@ -65,6 +65,16 @@ export interface AgentPolicyOptions {
    * an attacker picks their own verdict.
    */
   verify?: (req: Request) => BotVerificationLike
+  /**
+   * A verification already computed elsewhere. Use this when your verifier is
+   * async — {@link verifyWebBotAuth} fetches a key directory, so the natural
+   * verifier from `@apideck/agent-analytics/verify` returns a promise and
+   * cannot be passed to `verify` on this synchronous function.
+   *
+   * {@link paymentGate} does this for you: it awaits the verifier and forwards
+   * the result here.
+   */
+  verification?: BotVerificationLike
   /** What to do with bulk training crawlers. Defaults to `'meter'`. */
   onTraining?: AgentAction
   /** What to do with retrieval agents. Defaults to `'allow'` — see AgentIntent. */
@@ -77,7 +87,16 @@ export interface AgentPolicyOptions {
   allowList?: readonly string[]
 }
 
-/** Classify why an agent is here, from its user agent alone. */
+/**
+ * Classify why an agent is here, from its user agent alone.
+ *
+ * This must return exactly what {@link agentPolicy} reports for the same UA.
+ * It previously did not: the `tooling` promotion for HTTP-library UAs lived
+ * only inside `agentPolicy`, so `agentIntent('curl/8.4.0')` said `'unknown'`
+ * while the policy said `'tooling'` — two exported functions disagreeing on
+ * every HTTP client, with no way for a caller to know which was right. The
+ * invariant is pinned by a test.
+ */
 export function agentIntent(userAgent: string | null | undefined): AgentIntent {
   const ua = userAgent ?? ''
   if (!ua) return 'unknown'
@@ -86,6 +105,8 @@ export function agentIntent(userAgent: string | null | undefined): AgentIntent {
   if (RETRIEVAL.test(ua)) return 'retrieval'
   if (TRAINING.test(ua)) return 'training'
   if (SEARCH.test(ua)) return 'search'
+  // An HTTP-library UA that matched no vendor is a coding agent or a script.
+  if (isHttpClient(ua)) return 'tooling'
   return 'unknown'
 }
 
@@ -106,9 +127,9 @@ export function agentPolicy(req: Request, opts: AgentPolicyOptions = {}): AgentD
   const classification = classifyRequest(req)
   const label = classification.label
 
-  let intent = agentIntent(ua)
-  // An HTTP-library UA that matched no vendor is a coding agent or a script.
-  if (intent === 'unknown' && classification.codingAgentHint) intent = 'tooling'
+  // Single source of truth — the promotion that used to live here now lives in
+  // agentIntent, so the two can no longer drift apart.
+  const intent = agentIntent(ua)
 
   const allowed = opts.allowList?.some(
     (entry) => entry === label || ua.toLowerCase().includes(entry.toLowerCase())
@@ -117,9 +138,12 @@ export function agentPolicy(req: Request, opts: AgentPolicyOptions = {}): AgentD
     return { action: 'allow', intent, label, reason: 'on allowList' }
   }
 
+  // A pre-resolved verification wins: it is the only way an async verifier can
+  // reach this synchronous function.
+  const resolved = opts.verification ?? (opts.verify ? opts.verify(req) : undefined)
   let verification: string | undefined
-  if (opts.verify) {
-    verification = opts.verify(req).verdict
+  if (resolved) {
+    verification = resolved.verdict
     // Only 'spoofed' is actionable. 'unverifiable' means we couldn't check —
     // blocking on it would refuse every vendor without a published feed and
     // every coding agent running on someone's own machine.

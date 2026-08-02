@@ -82,6 +82,87 @@ Now you can build:
 
 ---
 
+## Charging for training crawls (experimental)
+
+> **⚠️ Experimental.** The payment surface — `paymentRequired`, `paymentGate`,
+> `x402Gateway`, `mppxGateway` — may change without a major version bump. The
+> protocols are weeks old and still moving: x402 and MPP are both live but their
+> specs are unstable, MPP had not publicly pinned a settlement-confirmation
+> header at the time of writing, and no agent in our own production traffic has
+> yet presented a payment credential. Detection, verification and policy are
+> stable; this is not. Do not put it on a revenue-critical path yet.
+
+### Meter first. Charge later, if at all.
+
+Per-request 402 is what x402 and MPP define, and it is the wrong shape for a
+training sweep. On one production site that is ~199,000 training requests a
+month: three times the traffic once you add pay-and-retry, 199,000 settlements
+whose per-transaction cost exceeds any sane per-page price, and — decisively —
+**no crawler in the wild retries a 402**. Charging per request is blocking with
+extra steps.
+
+So start by counting:
+
+```ts
+import { paymentGate } from '@apideck/agent-analytics'
+import { combinedVerifier } from '@apideck/agent-analytics/verify'
+
+const gate = await paymentGate(req, {
+  verify: combinedVerifier(),
+  meter: { record: (e) => warehouse.insert(e) } // training only
+})
+if (gate.response) return gate.response
+return gate.decorate(await serve(req))
+```
+
+`meter` fires only for training traffic. Retrieval and search are served free
+and never counted, because charging the channel that sends you readers is the
+one outcome this design exists to prevent.
+
+### Then sell a licence, not a page
+
+When you know the number, switch to an entitlement: one 402 advertising a bulk
+offer, one settlement, a reusable credential.
+
+```ts
+import { entitlementGateway } from '@apideck/agent-analytics'
+
+const gate = await paymentGate(req, {
+  onTraining: 'charge',
+  gateway: entitlementGateway({
+    store: myKV,                    // lookup + consume; quota state is yours
+    offer: { units: 1_000_000, unit: 'pages', validForSeconds: 2_592_000, price: '$400' },
+    challenges: [{ protocol: 'mpp', id, realm: 'example.com', method: 'tempo' }]
+  })
+})
+```
+
+```
+402  once, advertising the licence
+200  every request after, quota −1
+402  again when it runs out
+```
+
+Unknown, expired and exhausted credentials all return the same challenge —
+distinguishing them would turn the endpoint into an oracle for probing quota.
+
+MPP's reusable `Authorization: Payment` credential suits this better than
+x402's per-resource signature, which proves payment for a single URL.
+
+Measured against real traffic shapes:
+
+```
+402    training   charge  GPTBot
+serve  retrieval  allow   ChatGPT-User
+403    training   block   ClaudeBot from an unpublished IP
+402    training   charge  ClaudeBot from a real Anthropic IP
+serve  search     allow   Googlebot
+```
+
+Settlement is never ours. `mppxGateway` wraps Stripe's MPP SDK; `x402Gateway`
+calls a facilitator you supply. The library emits challenges and reads
+credentials — holding money would drag PCI scope into edge middleware.
+
 ## Cryptographic verification (Web Bot Auth)
 
 Published IP ranges were always the weak form of identity. [Web Bot
@@ -169,6 +250,37 @@ without Web Crypto now fail with an explicit message rather than a confusing
   never throws into the response path.
 - Outbound captures carry a 3s `AbortSignal` (`timeoutMs` to change it).
 - Root bundle is 65% smaller (27.7 kB → 9.6 kB, 3.8 kB gzipped).
+
+## Recommending firewall rules
+
+Turn observed traffic into staged Vercel WAF proposals. It emits *proposals* —
+every rule comes out in `log` mode and Vercel stages rule changes as drafts, so
+nothing is live until you run `vercel firewall publish` yourself.
+
+```ts
+import { recommendFirewallRules, firewallScript } from '@apideck/agent-analytics'
+
+const rules = recommendFirewallRules(observations) // aggregate from your warehouse
+console.log(firewallScript(rules))                // runnable, commented bash
+```
+
+Two rules it will not break, both from measurement rather than taste:
+
+- **Retrieval and search agents are never proposed for blocking**, and a `bypass`
+  rule protecting them is emitted *first* so later rules cannot catch them.
+  Rules evaluate top to bottom, and 60% of AI traffic on one production site is
+  a person asking a question.
+- **Training crawlers get rate limits, not denials.** Denying them removes you
+  from future training sets, which is a discoverability decision rather than a
+  default.
+
+Only a failed verification earns a proposed `deny`. Every recommendation carries
+its `evidence`, a `risk` rating, and a `caveat` where over-blocking is plausible
+— the datacenter-ASN rule is marked `high` risk because corporate VPNs and
+privacy relays egress from hosting networks.
+
+See [`docs/TESTING-PAYMENTS.md`](./docs/TESTING-PAYMENTS.md) for testing the
+payment path end to end.
 
 ## Install
 
