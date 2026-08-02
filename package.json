@@ -66,6 +66,8 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
+    "test:unit": "vitest run --exclude 'test/integration.test.ts'",
+    "test:integration": "vitest run test/integration.test.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"

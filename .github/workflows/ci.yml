@@ -23,4 +23,11 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
-      - run: npm test
+      - run: npm run test:unit
+
+      # Run separately so a composition failure is legible as one. Every bug
+      # found in this library after the unit suite went green was a layer
+      # boundary problem — each part correct alone, contradicting the next.
+      # "unit tests pass, integration fails" is the signal worth surfacing.
+      - name: Integration — composed stack and cross-layer invariants
+        run: npm run test:integration
