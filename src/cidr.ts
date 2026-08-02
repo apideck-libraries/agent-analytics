@@ -84,7 +84,15 @@ interface V6Range {
 }
 
 export interface CompiledRanges {
-  v4: V4Range[]
+  /**
+   * IPv4 ranges bucketed by first octet. A vendor can publish hundreds of
+   * prefixes (OpenAI: 372) and a linear scan walked all of them on every
+   * request; bucketing turns the common case into one map lookup plus a
+   * handful of comparisons. Prefixes shorter than /8 span several buckets and
+   * are held in `v4Wide`, which stays tiny.
+   */
+  v4: Map<number, V4Range[]>
+  v4Wide: V4Range[]
   v6: V6Range[]
 }
 
@@ -94,7 +102,8 @@ export interface CompiledRanges {
  * shouldn't take down the whole check.
  */
 export function compileRanges(cidrs: readonly string[]): CompiledRanges {
-  const v4: V4Range[] = []
+  const v4 = new Map<number, V4Range[]>()
+  const v4Wide: V4Range[] = []
   const v6: V6Range[] = []
   for (const cidr of cidrs) {
     const slash = cidr.lastIndexOf('/')
@@ -114,10 +123,18 @@ export function compileRanges(cidrs: readonly string[]): CompiledRanges {
       if (net === null) continue
       // `bits === 0` needs special handling: `<<32` is a no-op in JS, not zero.
       const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0
-      v4.push({ net: (net & mask) >>> 0, mask })
+      const entry = { net: (net & mask) >>> 0, mask }
+      if (bits >= 8) {
+        const bucket = entry.net >>> 24
+        const list = v4.get(bucket)
+        if (list) list.push(entry)
+        else v4.set(bucket, [entry])
+      } else {
+        v4Wide.push(entry)
+      }
     }
   }
-  return { v4, v6 }
+  return { v4, v4Wide, v6 }
 }
 
 /** True when `ip` falls inside any range in the pre-compiled set. */
@@ -134,7 +151,7 @@ export function ipInRanges(ip: string, ranges: CompiledRanges): boolean {
     const V4_MAPPED_PREFIX = 0xffffn << 32n
     if ((value >> 32n) === V4_MAPPED_PREFIX >> 32n) {
       const low = Number(value & 0xffffffffn) >>> 0
-      if (matchV4(low, ranges.v4)) return true
+      if (matchV4(low, ranges)) return true
     }
     for (const r of ranges.v6) {
       if (r.bits === 0) return true
@@ -145,11 +162,17 @@ export function ipInRanges(ip: string, ranges: CompiledRanges): boolean {
 
   const value = ipv4ToInt(trimmed)
   if (value === null) return false
-  return matchV4(value, ranges.v4)
+  return matchV4(value, ranges)
 }
 
-function matchV4(value: number, list: readonly V4Range[]): boolean {
-  for (const r of list) {
+function matchV4(value: number, ranges: CompiledRanges): boolean {
+  const bucket = ranges.v4.get(value >>> 24)
+  if (bucket) {
+    for (const r of bucket) {
+      if (((value & r.mask) >>> 0) === r.net) return true
+    }
+  }
+  for (const r of ranges.v4Wide) {
     if (((value & r.mask) >>> 0) === r.net) return true
   }
   return false

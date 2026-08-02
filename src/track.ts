@@ -1,21 +1,45 @@
 import { classifyRequest, detectHeadless, isAiBot, isHttpClient } from './bots.js'
-import { verifyBotIdentity } from './verify.js'
-import { hashId } from './hash.js'
+import { hashId, randomSecret } from './hash.js'
 import type { TrackVisitOptions } from './types.js'
 
 /**
- * Capture an event describing the incoming request. Fire-and-forget: awaits
- * the adapter but swallows errors so a downed analytics backend never breaks
- * the response path. Callers typically don't await the returned promise.
+ * Fallback secret, generated once per instance. Keeps the default path
+ * privacy-preserving rather than making callers opt in to safety, at the cost
+ * of identifiers that only correlate within one instance's lifetime.
+ */
+let fallbackSecret: string | undefined
+let warnedNoSecret = false
+
+function resolveSecret(explicit: string | undefined): string {
+  if (explicit) return explicit
+  const fromEnv =
+    typeof process !== 'undefined' ? process.env?.AGENT_ANALYTICS_ID_SECRET : undefined
+  if (fromEnv) return fromEnv
+  if (!fallbackSecret) {
+    fallbackSecret = randomSecret()
+    if (!warnedNoSecret) {
+      warnedNoSecret = true
+      // Once per instance, not once per request.
+      console.warn(
+        '[agent-analytics] No idSecret or AGENT_ANALYTICS_ID_SECRET set. ' +
+          'Using a per-instance random secret: distinctIds will not correlate ' +
+          'across instances or deploys.'
+      )
+    }
+  }
+  return fallbackSecret
+}
+
+/**
+ * Capture an event describing the incoming request. Fire-and-forget: awaits the
+ * adapter but routes errors to {@link TrackVisitOptions.onError} rather than
+ * letting them reach the response path. Callers typically don't await it.
  *
  * By default, captures every request so coding-agent traffic (axios, curl,
  * Electron, …) shows up alongside branded crawlers. Set `onlyBots: true` to
  * restrict capture to UAs matching {@link AI_BOT_PATTERN}.
  */
-export async function trackVisit(
-  req: Request,
-  opts: TrackVisitOptions
-): Promise<void> {
+export async function trackVisit(req: Request, opts: TrackVisitOptions): Promise<void> {
   const userAgent = req.headers.get('user-agent') || ''
 
   const onlyBots = opts.onlyBots ?? false
@@ -28,69 +52,90 @@ export async function trackVisit(
     if (!detectHeadless(req).likely) return
   }
 
-  let pathname = '/'
-  let originFromUrl = ''
   try {
-    const url = new URL(req.url)
-    pathname = url.pathname
-    originFromUrl = url.origin
-  } catch {
-    // Some runtimes hand us a relative URL; fall back to the raw string.
-    pathname = req.url || '/'
-  }
-  const origin = opts.origin ?? originFromUrl
-
-  const forwardedFor = req.headers.get('x-forwarded-for') || ''
-  const ip = forwardedFor.split(',')[0]?.trim() ?? ''
-  const referer = req.headers.get('referer')
-  const country = opts.captureCountry
-    ? req.headers.get('x-vercel-ip-country') ||
-      req.headers.get('cf-ipcountry') ||
-      req.headers.get('x-country-code') ||
-      null
-    : null
-  const geo = opts.captureGeo ? extractGeo(req) : null
-  const classification = classifyRequest(req)
-  // Only run the range check when asked — it is pure CPU over pre-compiled
-  // masks, but the verdict is misleading unless the caller trusts `ip`.
-  const verification = opts.verifyIdentity ? verifyBotIdentity(userAgent, ip) : null
-
-  const event = {
-    event: opts.eventName ?? 'agent_visit',
-    distinctId: hashId(`${ip}:${userAgent}`),
-    timestamp: new Date().toISOString(),
-    properties: {
-      $process_person_profile: false,
-      $current_url: origin ? `${origin}${pathname}` : pathname,
-      path: pathname,
-      method: req.method,
-      ...(opts.captureCountry ? { country_code: country } : {}),
-      ...(geo ?? {}),
-      ...(opts.captureIp ? { client_ip: ip || null } : {}),
-      user_agent: userAgent,
-      is_ai_bot: classification.isAiBot,
-      bot_name: classification.label,
-      ua_category: classification.kind,
-      coding_agent_hint: classification.codingAgentHint,
-      headless_score: classification.headless?.score ?? 0,
-      headless_likely: classification.headless?.likely ?? false,
-      ...(verification
-        ? {
-            bot_verified: verification.verified,
-            bot_verification: verification.verdict,
-            ...(verification.reason ? { bot_verification_reason: verification.reason } : {})
-          }
-        : {}),
-      referer,
-      source: opts.source ?? null,
-      ...opts.properties
+    let pathname = '/'
+    let originFromUrl = ''
+    try {
+      const url = new URL(req.url)
+      pathname = url.pathname
+      originFromUrl = url.origin
+    } catch {
+      // Some runtimes hand us a relative URL; fall back to the raw string.
+      pathname = req.url || '/'
     }
-  }
+    const origin = opts.origin ?? originFromUrl
 
-  try {
+    const forwardedFor = req.headers.get('x-forwarded-for') || ''
+    const ip = forwardedFor.split(',')[0]?.trim() ?? ''
+    const referer = req.headers.get('referer')
+    const country = opts.captureCountry
+      ? req.headers.get('x-vercel-ip-country') ||
+        req.headers.get('cf-ipcountry') ||
+        req.headers.get('x-country-code') ||
+        null
+      : null
+    const geo = opts.captureGeo ? extractGeo(req) : null
+    const classification = classifyRequest(req)
+
+    // Verification is injected rather than imported, so the published IP range
+    // tables only reach bundles that actually use them. Import `verifyRequest`
+    // from `@apideck/agent-analytics/verify` and pass it as `verify`.
+    const verification = opts.verify ? opts.verify(req) : null
+
+    // Headless scoring only discriminates for browser-shaped UAs. On a declared
+    // crawler or an HTTP client it fires on nearly everything — measured true on
+    // 99% of captured events — so it reads as signal when it is noise. Omitted
+    // rather than emitted as a near-constant.
+    const headlessMeaningful =
+      classification.kind === 'headless-likely' || classification.kind === 'browser'
+
+    const distinctId = await hashId(`${ip}:${userAgent}`, resolveSecret(opts.idSecret))
+
+    const event = {
+      event: opts.eventName ?? 'agent_visit',
+      distinctId,
+      timestamp: new Date().toISOString(),
+      properties: {
+        // Caller properties are spread FIRST so library-computed fields always
+        // win. Spreading them last let a colliding key silently overwrite
+        // bot_name or is_ai_bot — corrupting the very classification they were
+        // meant to annotate.
+        ...opts.properties,
+        $process_person_profile: false,
+        $current_url: origin ? `${origin}${pathname}` : pathname,
+        path: pathname,
+        method: req.method,
+        ...(opts.captureCountry ? { country_code: country } : {}),
+        ...(geo ?? {}),
+        ...(opts.captureIp ? { client_ip: ip || null } : {}),
+        user_agent: userAgent,
+        is_ai_bot: classification.isAiBot,
+        bot_name: classification.label,
+        ua_category: classification.kind,
+        coding_agent_hint: classification.codingAgentHint,
+        ...(headlessMeaningful
+          ? {
+              headless_score: classification.headless?.score ?? 0,
+              headless_likely: classification.headless?.likely ?? false
+            }
+          : {}),
+        ...(verification
+          ? {
+              bot_verified: verification.verified,
+              bot_verification: verification.verdict,
+              ...(verification.reason ? { bot_verification_reason: verification.reason } : {})
+            }
+          : {}),
+        referer,
+        source: opts.source ?? null
+      }
+    }
+
     await opts.analytics.capture(event)
-  } catch {
-    // Intentional swallow — analytics failures must not affect the response.
+  } catch (err) {
+    // Analytics must never affect the response — but silence is how a wrong API
+    // key goes unnoticed for a week, so surface it when the caller asks.
+    opts.onError?.(err instanceof Error ? err : new Error(String(err)))
   }
 }
 

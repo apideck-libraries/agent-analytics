@@ -4,6 +4,7 @@ export default defineConfig({
   entry: [
     'src/index.ts',
     'src/markdown.ts',
+    'src/verify.ts',
     'src/adapters/posthog.ts',
     'src/adapters/webhook.ts'
   ],
@@ -13,5 +14,6 @@ export default defineConfig({
   sourcemap: true,
   target: 'es2022',
   splitting: false,
-  treeshake: true
+  treeshake: true,
+  minify: true
 })

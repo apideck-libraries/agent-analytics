@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { customAnalytics } from '../src/adapters/custom.js'
 import { trackVisit } from '../src/track.js'
+import { verifyRequest } from '../src/verify.js'
 import type { CaptureEvent } from '../src/types.js'
 
 function makeRequest(
@@ -229,7 +230,11 @@ describe('trackVisit', () => {
     expect(event.properties.path).toBe('/docs/intro')
   })
 
-  it('lets user-supplied properties override built-in event properties', async () => {
+  it('does not let user-supplied properties clobber computed fields', async () => {
+    // This previously asserted the opposite. Caller properties were spread
+    // last, so a colliding key silently corrupted the very classification it
+    // was meant to annotate — an event could claim is_ai_bot: 'custom' on a
+    // request the library had positively identified as ClaudeBot.
     const spy = vi.fn()
     await trackVisit(
       makeRequest('https://example.com/original', { 'user-agent': 'ClaudeBot' }),
@@ -239,11 +244,11 @@ describe('trackVisit', () => {
       }
     )
     const event = spy.mock.calls[0]![0] as CaptureEvent
-    expect(event.properties.path).toBe('/overridden')
-    expect(event.properties.site).toBe('docs')
-    expect(event.properties.is_ai_bot).toBe('custom')
-    // Unrelated built-ins still present.
+    expect(event.properties.path).toBe('/original')
+    expect(event.properties.is_ai_bot).toBe(true)
     expect(event.properties.bot_name).toBe('Claude')
+    // Non-colliding caller properties still come through.
+    expect(event.properties.site).toBe('docs')
   })
 
   it('produces the same distinct_id for identical ip+ua across calls', async () => {
@@ -421,7 +426,7 @@ describe('trackVisit', () => {
   })
 })
 
-describe('trackVisit — verifyIdentity', () => {
+describe('trackVisit — injected verifier', () => {
   const CHATGPT_UA = 'Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)'
   const REAL_OPENAI_IP = '104.208.184.193'
 
@@ -445,7 +450,7 @@ describe('trackVisit — verifyIdentity', () => {
   it('marks a real crawler verified', async () => {
     const e = await capture(
       { 'user-agent': CHATGPT_UA, 'x-forwarded-for': REAL_OPENAI_IP },
-      { verifyIdentity: true }
+      { verify: verifyRequest }
     )
     expect(e.properties.bot_verified).toBe(true)
     expect(e.properties.bot_verification).toBe('verified')
@@ -455,7 +460,7 @@ describe('trackVisit — verifyIdentity', () => {
   it('marks the same UA from another IP spoofed', async () => {
     const e = await capture(
       { 'user-agent': CHATGPT_UA, 'x-forwarded-for': '1.2.3.4' },
-      { verifyIdentity: true }
+      { verify: verifyRequest }
     )
     expect(e.properties.bot_verified).toBe(false)
     expect(e.properties.bot_verification).toBe('spoofed')
@@ -468,7 +473,7 @@ describe('trackVisit — verifyIdentity', () => {
   it('uses the first x-forwarded-for hop, not a trailing proxy', async () => {
     const e = await capture(
       { 'user-agent': CHATGPT_UA, 'x-forwarded-for': `${REAL_OPENAI_IP}, 10.0.0.1` },
-      { verifyIdentity: true }
+      { verify: verifyRequest }
     )
     expect(e.properties.bot_verification).toBe('verified')
   })
@@ -476,9 +481,131 @@ describe('trackVisit — verifyIdentity', () => {
   it('reports unverifiable for vendors without a published feed', async () => {
     const e = await capture(
       { 'user-agent': 'Mozilla/5.0 (compatible; Bytespider/1.0)', 'x-forwarded-for': '1.2.3.4' },
-      { verifyIdentity: true }
+      { verify: verifyRequest }
     )
     expect(e.properties.bot_verified).toBeNull()
     expect(e.properties.bot_verification).toBe('unverifiable')
+  })
+})
+
+describe('trackVisit — error surfacing', () => {
+  it('reports a non-2xx from the analytics backend instead of swallowing it', async () => {
+    // A mistyped API key used to be indistinguishable from success. That is how
+    // an integration stays broken for a week.
+    const errors: Error[] = []
+    const { posthogAnalytics } = await import('../src/adapters/posthog.js')
+    await trackVisit(makeRequest('https://example.com/', { 'user-agent': 'ClaudeBot' }), {
+      analytics: posthogAnalytics({
+        apiKey: 'wrong',
+        fetchImpl: async () => new Response('{"error":"invalid key"}', { status: 401 })
+      }),
+      onError: (e) => errors.push(e)
+    })
+    expect(errors).toHaveLength(1)
+    expect(errors[0]!.name).toBe('CaptureTransportError')
+    expect(errors[0]!.message).toContain('401')
+  })
+
+  it('still never throws into the response path', async () => {
+    const boom = { capture: () => Promise.reject(new Error('backend down')) }
+    // No onError supplied: must resolve quietly rather than reject.
+    await expect(
+      trackVisit(makeRequest('https://example.com/', { 'user-agent': 'ClaudeBot' }), {
+        analytics: boom
+      })
+    ).resolves.toBeUndefined()
+  })
+
+  it('routes a thrown adapter error to onError', async () => {
+    const errors: Error[] = []
+    await trackVisit(makeRequest('https://example.com/', { 'user-agent': 'ClaudeBot' }), {
+      analytics: { capture: () => Promise.reject(new Error('backend down')) },
+      onError: (e) => errors.push(e)
+    })
+    expect(errors[0]?.message).toBe('backend down')
+  })
+
+  it('passes an abort signal so a hung backend cannot pend forever', async () => {
+    let sawSignal = false
+    const { posthogAnalytics } = await import('../src/adapters/posthog.js')
+    await trackVisit(makeRequest('https://example.com/', { 'user-agent': 'ClaudeBot' }), {
+      analytics: posthogAnalytics({
+        apiKey: 'k',
+        fetchImpl: (_u, init) => {
+          sawSignal = !!init?.signal
+          return Promise.resolve(new Response('ok'))
+        }
+      })
+    })
+    expect(sawSignal).toBe(true)
+  })
+})
+
+describe('trackVisit — identifier', () => {
+  it('is stable for a fixed secret and changes when the secret rotates', async () => {
+    const cap = async (idSecret: string) => {
+      const spy = vi.fn()
+      await trackVisit(
+        makeRequest('https://example.com/', {
+          'user-agent': 'ClaudeBot',
+          'x-forwarded-for': '1.2.3.4'
+        }),
+        { analytics: customAnalytics(spy), idSecret }
+      )
+      return (spy.mock.calls[0]![0] as CaptureEvent).distinctId
+    }
+    expect(await cap('secret-a')).toBe(await cap('secret-a'))
+    expect(await cap('secret-a')).not.toBe(await cap('secret-b'))
+    expect(await cap('secret-a')).toMatch(/^anon_[0-9a-f]{16}$/)
+  })
+
+  it('never emits the raw IP unless captureIp is set', async () => {
+    const spy = vi.fn()
+    await trackVisit(
+      makeRequest('https://example.com/', {
+        'user-agent': 'ClaudeBot',
+        'x-forwarded-for': '203.0.113.9'
+      }),
+      { analytics: customAnalytics(spy), idSecret: 's' }
+    )
+    const e = spy.mock.calls[0]![0] as CaptureEvent
+    expect(JSON.stringify(e)).not.toContain('203.0.113.9')
+  })
+})
+
+describe('trackVisit — headless fields', () => {
+  async function capture(ua: string) {
+    const spy = vi.fn()
+    await trackVisit(makeRequest('https://example.com/', { 'user-agent': ua }), {
+      analytics: customAnalytics(spy),
+      idSecret: 's'
+    })
+    return (spy.mock.calls[0]![0] as CaptureEvent).properties
+  }
+
+  it('omits headless fields for declared crawlers, where they are noise', async () => {
+    // Measured true on 99% of captured events, which made the property read as
+    // signal when it carried none.
+    const p = await capture('Mozilla/5.0 (compatible; ClaudeBot/1.0)')
+    expect('headless_likely' in p).toBe(false)
+    expect('headless_score' in p).toBe(false)
+  })
+
+  it('keeps them for browser-shaped UAs, where they discriminate', async () => {
+    const p = await capture(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36'
+    )
+    expect('headless_likely' in p).toBe(true)
+  })
+
+  it('labels headless automation as Headless, not Browser', async () => {
+    // 79% of one production site's agent traffic carried a browser UA with
+    // headless headers. Calling it 'Browser' hid it behind the obvious
+    // `bot_name != 'Browser'` filter.
+    const p = await capture(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36'
+    )
+    expect(p.ua_category).toBe('headless-likely')
+    expect(p.bot_name).toBe('Headless')
   })
 })

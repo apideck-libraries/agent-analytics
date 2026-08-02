@@ -312,9 +312,15 @@ export function classifyRequest(req: Request): AgentClassification {
   const headless = detectHeadless(req)
 
   let kind = base.kind
+  let label = base.label
   if (kind === 'browser' && headless.likely) {
     kind = 'headless-likely'
+    // Relabel too. Leaving it as 'Browser' meant automation with a spoofed
+    // browser UA — 79% of one production site's agent traffic — was
+    // indistinguishable from a human in any `bot_name` breakdown, and was
+    // silently excluded by the obvious `bot_name != 'Browser'` filter.
+    label = 'Headless'
   }
 
-  return { ...base, kind, headless }
+  return { ...base, kind, label, headless }
 }
