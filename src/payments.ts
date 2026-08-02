@@ -12,6 +12,16 @@
  * is charging for your own distribution. {@link agentPolicy} draws that line;
  * this module turns a `'charge'` decision into the HTTP challenge.
  *
+ * Two protocols, one status code. Both settle at the HTTP layer and both use
+ * 402, but the framing differs:
+ *
+ *   x402  PAYMENT-REQUIRED: <base64 JSON>      -> PAYMENT-SIGNATURE
+ *   MPP   WWW-Authenticate: Payment id="…"     -> Authorization: Payment …
+ *
+ * MPP reuses standard HTTP authentication framing; x402 defines its own
+ * headers. They do not collide, so a single 402 can advertise both and let the
+ * agent pick — which is what {@link paymentRequired} does when given both.
+ *
  * Scope: this emits the 402 and reads the client's payment header. It does not
  * settle anything. Settlement belongs to an x402 facilitator or Stripe's MPP —
  * a library that held money would inherit PCI scope and stop being something
@@ -37,11 +47,47 @@ export interface PaymentRequirements {
   extra?: Record<string, unknown>
 }
 
-export interface PaymentChallengeOptions {
+/** Which settlement protocol a challenge speaks. */
+export type PaymentProtocol = 'x402' | 'mpp'
+
+/** x402: base64 JSON in a `PAYMENT-REQUIRED` header. */
+export interface X402Challenge {
+  protocol: 'x402'
   /** Accepted payment methods, in preference order. At least one. */
   accepts: readonly PaymentRequirements[]
-  /** x402 protocol version. Defaults to 1. */
+  /** Protocol version. Defaults to 1. */
   x402Version?: number
+}
+
+/**
+ * MPP: an RFC 9110 `WWW-Authenticate: Payment` challenge.
+ *
+ * Field values are yours. `request` carries the encoded challenge payload your
+ * MPP provider generates — the library does not construct or price it.
+ */
+export interface MppChallenge {
+  protocol: 'mpp'
+  /** Challenge identifier. */
+  id: string
+  /** Authentication realm. */
+  realm: string
+  /** Payment method, e.g. `'tempo'`. */
+  method: string
+  /** Transaction intent, e.g. `'charge'`. */
+  intent?: string
+  /** Encoded challenge data from your provider. */
+  request?: string
+}
+
+export type PaymentChallenge = X402Challenge | MppChallenge
+
+export interface PaymentChallengeOptions {
+  /**
+   * Challenges to advertise. Supplying both an x402 and an MPP challenge is
+   * valid and usually correct: they use non-colliding headers, so one 402 can
+   * offer both and the agent takes whichever it speaks.
+   */
+  challenges: readonly PaymentChallenge[]
   /**
    * `Content-Signal` to send with the challenge. Defaults to
    * `search=yes, ai-input=yes, ai-train=paid` — the whole point being that
@@ -54,9 +100,16 @@ export interface PaymentChallengeOptions {
   body?: string
 }
 
-const HEADER_CHALLENGE = 'PAYMENT-REQUIRED'
-const HEADER_SIGNATURE = 'PAYMENT-SIGNATURE'
-const HEADER_SETTLEMENT = 'PAYMENT-RESPONSE'
+const X402_CHALLENGE = 'PAYMENT-REQUIRED'
+const X402_SIGNATURE = 'PAYMENT-SIGNATURE'
+const X402_SETTLEMENT = 'PAYMENT-RESPONSE'
+const MPP_CHALLENGE = 'WWW-Authenticate'
+const MPP_CREDENTIAL = 'Authorization'
+
+/** Quote and escape a WWW-Authenticate auth-param value per RFC 9110. */
+function quoted(v: string): string {
+  return `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
 
 function b64(json: unknown): string {
   const text = JSON.stringify(json)
@@ -75,59 +128,115 @@ function b64(json: unknown): string {
  * const decision = agentPolicy(req, { onTraining: 'charge' })
  * if (decision.action === 'charge') {
  *   return paymentRequired({
- *     accepts: [{
- *       scheme: 'exact',
- *       network: 'base',
- *       maxAmountRequired: '1000',        // your price, your units
- *       resource: req.url,
- *       description: 'Training crawl of one page',
- *       payTo: process.env.WALLET,
- *       asset: process.env.USDC_ADDRESS
- *     }]
+ *     challenges: [
+ *       {
+ *         protocol: 'x402',
+ *         accepts: [{
+ *           scheme: 'exact',
+ *           network: 'base',
+ *           maxAmountRequired: '1000',     // your price, your units
+ *           resource: req.url,
+ *           payTo: process.env.WALLET!,
+ *           asset: process.env.USDC!
+ *         }]
+ *       },
+ *       { protocol: 'mpp', id: challengeId, realm: 'example.com', method: 'tempo', intent: 'charge' }
+ *     ]
  *   })
  * }
  * ```
  */
 export function paymentRequired(opts: PaymentChallengeOptions): Response {
-  if (!opts.accepts.length) {
-    throw new Error('paymentRequired needs at least one entry in `accepts`')
+  if (!opts.challenges.length) {
+    throw new Error('paymentRequired needs at least one challenge')
   }
-  const challenge = {
-    x402Version: opts.x402Version ?? 1,
-    accepts: opts.accepts
+
+  const headers = new Headers({
+    'content-type': 'text/plain; charset=utf-8',
+    // Says the quiet part out loud: training is for sale, not forbidden.
+    'content-signal': opts.contentSignal ?? 'search=yes, ai-input=yes, ai-train=paid'
+  })
+
+  for (const c of opts.challenges) {
+    if (c.protocol === 'x402') {
+      if (!c.accepts.length) {
+        throw new Error('an x402 challenge needs at least one entry in `accepts`')
+      }
+      headers.set(X402_CHALLENGE, b64({ x402Version: c.x402Version ?? 1, accepts: c.accepts }))
+    } else {
+      const params = [
+        `id=${quoted(c.id)}`,
+        `realm=${quoted(c.realm)}`,
+        `method=${quoted(c.method)}`,
+        ...(c.intent ? [`intent=${quoted(c.intent)}`] : []),
+        ...(c.request ? [`request=${quoted(c.request)}`] : [])
+      ]
+      // `append`, not `set`: WWW-Authenticate legitimately carries multiple
+      // challenges, and a caller may already have added one.
+      headers.append(MPP_CHALLENGE, `Payment ${params.join(', ')}`)
+    }
   }
+
+  for (const [k, v] of Object.entries(opts.headers ?? {})) headers.set(k, v)
+
   return new Response(opts.body ?? 'Payment required for training access.\n', {
     status: 402,
-    headers: {
-      'content-type': 'text/plain; charset=utf-8',
-      [HEADER_CHALLENGE]: b64(challenge),
-      // Says the quiet part out loud: training is for sale, not forbidden.
-      'content-signal': opts.contentSignal ?? 'search=yes, ai-input=yes, ai-train=paid',
-      ...(opts.headers ?? {})
-    }
+    headers
   })
 }
 
+/** A payment credential the client sent back, and which protocol it speaks. */
+export interface SubmittedPayment {
+  protocol: PaymentProtocol
+  /** Raw header value, for handing to a facilitator. */
+  value: string
+}
+
 /**
- * True when the client attached a payment payload — i.e. this is the retry
+ * Read the client's payment credential, whichever protocol it used.
+ *
+ * x402 sends `PAYMENT-SIGNATURE`; MPP sends `Authorization: Payment …`. The
+ * `Payment` scheme check matters — a site behind normal auth will also have a
+ * Bearer or Basic `Authorization` header, and mistaking that for a payment
+ * would be a security-relevant confusion.
+ */
+export function paymentPayload(req: Request): SubmittedPayment | null {
+  const x402 = req.headers.get(X402_SIGNATURE)
+  if (x402) return { protocol: 'x402', value: x402 }
+
+  const auth = req.headers.get(MPP_CREDENTIAL)
+  if (auth) {
+    const m = auth.match(/^Payment\s+(.*)$/i)
+    if (m?.[1]) return { protocol: 'mpp', value: m[1] }
+  }
+  return null
+}
+
+/**
+ * True when the client attached a payment credential — i.e. this is the retry
  * after a 402, not a fresh unpaid request.
  *
  * Presence is not proof. Hand the value to your facilitator to verify and
  * settle; only then serve the resource.
  */
 export function hasPaymentPayload(req: Request): boolean {
-  return !!req.headers.get(HEADER_SIGNATURE)
+  return paymentPayload(req) !== null
 }
 
-/** Raw `PAYMENT-SIGNATURE` value, for handing to a facilitator. */
-export function paymentPayload(req: Request): string | null {
-  return req.headers.get(HEADER_SIGNATURE)
-}
-
-/** Attach a facilitator's settlement result to a successful response. */
-export function withSettlement(res: Response, settlement: unknown): Response {
+/**
+ * Attach a facilitator's settlement result to a successful response.
+ *
+ * x402 defines `PAYMENT-RESPONSE` for this. MPP's public spec did not pin a
+ * settlement-confirmation header at the time of writing, so pass `header` to
+ * name whatever your provider expects rather than have the library guess.
+ */
+export function withSettlement(
+  res: Response,
+  settlement: unknown,
+  opts: { header?: string } = {}
+): Response {
   const headers = new Headers(res.headers)
-  headers.set(HEADER_SETTLEMENT, b64(settlement))
+  headers.set(opts.header ?? X402_SETTLEMENT, b64(settlement))
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
 }
 

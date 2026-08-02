@@ -21,7 +21,15 @@ export {
   respondToDecision,
   withSettlement
 } from './payments.js'
-export type { PaymentChallengeOptions, PaymentRequirements } from './payments.js'
+export type {
+  MppChallenge,
+  PaymentChallenge,
+  PaymentChallengeOptions,
+  PaymentProtocol,
+  PaymentRequirements,
+  SubmittedPayment,
+  X402Challenge
+} from './payments.js'
 export type {
   AgentAction,
   AgentDecision,
