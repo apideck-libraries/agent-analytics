@@ -316,3 +316,67 @@ describe('firstUserAgentProduct — edge cases', () => {
     expect(firstUserAgentProduct('Mozilla/5.0 (compatible; GPTBot)')).toBe('GPTBot)')
   })
 })
+
+describe('AI_BOT_PATTERN and parseBotName stay in sync', () => {
+  // Real UA strings for every crawler `parseBotName` maps to an AI vendor.
+  // If `parseBotName` learns a new AI bot but `AI_BOT_PATTERN` doesn't, the
+  // event still gets a friendly `bot_name` while `is_ai_bot` silently stays
+  // false — so the traffic disappears from every AI-filtered chart. That is
+  // exactly how bare `Applebot` went unmatched while `Applebot-Extended` was
+  // recognised. Pin the invariant so the two can't drift again.
+  const AI_CRAWLER_UAS: Array<[string, string]> = [
+    ['Claude', 'Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)'],
+    ['Claude', 'Claude-User/1.0'],
+    ['Claude', 'Mozilla/5.0 (compatible; Claude-SearchBot/1.0)'],
+    ['ChatGPT', 'Mozilla/5.0 (compatible; GPTBot/1.1; +https://openai.com/gptbot)'],
+    ['ChatGPT', 'Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)'],
+    ['ChatGPT', 'Mozilla/5.0 (compatible; OAI-SearchBot/1.0)'],
+    ['Perplexity', 'Mozilla/5.0 (compatible; PerplexityBot/1.0)'],
+    ['Perplexity', 'Mozilla/5.0 (compatible; Perplexity-User/1.0)'],
+    ['Google', 'Mozilla/5.0 (compatible; Google-Extended/1.0)'],
+    ['Google', 'Mozilla/5.0 (compatible; Gemini-Deep-Research/1.0)'],
+    // Apple appends its token at the END of a full Safari UA — the shape that
+    // slipped through when only `Applebot-Extended` was in the pattern.
+    [
+      'Apple',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)'
+    ],
+    ['Apple', 'Mozilla/5.0 (compatible; Applebot-Extended/0.1)'],
+    ['Amazon', 'Mozilla/5.0 (compatible; Amazonbot/0.1)'],
+    ['Amazon', 'Mozilla/5.0 (compatible; Amzn-SearchBot/1.0)'],
+    ['Meta', 'meta-externalagent/1.1'],
+    ['Meta', 'meta-externalfetcher/1.1'],
+    ['Meta', 'meta-webindexer/1.0'],
+    ['Bytespider', 'Mozilla/5.0 (compatible; Bytespider/1.0)'],
+    ['Common Crawl', 'CCBot/2.0'],
+    ['DeepSeek', 'Mozilla/5.0 (compatible; DeepSeek/1.0)'],
+    ['xAI', 'Mozilla/5.0 (compatible; Grok/1.0)'],
+    ['You.com', 'Mozilla/5.0 (compatible; YouBot/1.0)'],
+    ['DuckDuckGo', 'Mozilla/5.0 (compatible; DuckAssistBot/1.0)'],
+    ['Mistral', 'Mozilla/5.0 (compatible; MistralAI-User/1.0)'],
+    ['Huawei', 'Mozilla/5.0 (compatible; PanguBot/1.0)']
+  ]
+
+  it.each(AI_CRAWLER_UAS)('classifies %s as a declared AI crawler', (label, ua) => {
+    expect(parseBotName(ua)).toBe(label)
+    expect(isAiBot(ua)).toBe(true)
+    expect(classifyAgent(ua).kind).toBe('declared-crawler')
+  })
+
+  it('does not classify SEO, monitoring, or search crawlers as AI', () => {
+    // These get friendly labels too, but must stay out of AI-filtered charts.
+    for (const ua of [
+      'Mozilla/5.0 (compatible; AhrefsBot/7.0)',
+      'Mozilla/5.0 (compatible; SemrushBot/7~bl)',
+      'Mozilla/5.0 (compatible; MJ12bot/v1.4.8)',
+      'Mozilla/5.0 (compatible; DataForSeoBot/1.0)',
+      'Mozilla/5.0 (compatible; bingbot/2.0)',
+      'Mozilla/5.0 (compatible; PetalBot;+https://webmaster.petalsearch.com/site/petalbot)',
+      'Mozilla/5.0 (compatible; YandexBot/3.0)',
+      'Mozilla/5.0 (compatible; Baiduspider/2.0)'
+    ]) {
+      expect(isAiBot(ua)).toBe(false)
+      expect(classifyAgent(ua).kind).not.toBe('declared-crawler')
+    }
+  })
+})
