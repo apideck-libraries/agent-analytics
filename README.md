@@ -104,7 +104,7 @@ extra steps.
 So start by counting:
 
 ```ts
-import { paymentGate } from '@apideck/agent-analytics'
+import { paymentGate } from '@apideck/agent-analytics/payments'
 import { combinedVerifier } from '@apideck/agent-analytics/verify'
 
 const gate = await paymentGate(req, {
@@ -125,7 +125,7 @@ When you know the number, switch to an entitlement: one 402 advertising a bulk
 offer, one settlement, a reusable credential.
 
 ```ts
-import { entitlementGateway } from '@apideck/agent-analytics'
+import { entitlementGateway } from '@apideck/agent-analytics/payments'
 
 const gate = await paymentGate(req, {
   onTraining: 'charge',
@@ -258,7 +258,7 @@ every rule comes out in `log` mode and Vercel stages rule changes as drafts, so
 nothing is live until you run `vercel firewall publish` yourself.
 
 ```ts
-import { recommendFirewallRules, firewallScript } from '@apideck/agent-analytics'
+import { recommendFirewallRules, firewallScript } from '@apideck/agent-analytics/firewall'
 
 const rules = recommendFirewallRules(observations) // aggregate from your warehouse
 console.log(firewallScript(rules))                // runnable, commented bash
@@ -281,6 +281,38 @@ privacy relays egress from hosting networks.
 
 See [`docs/TESTING-PAYMENTS.md`](./docs/TESTING-PAYMENTS.md) for testing the
 payment path end to end.
+
+## Entry points
+
+The root carries detection, classification, policy and capture — what every
+consumer needs. Everything optional lives behind a subpath, so it only reaches
+your bundle if you import it.
+
+| Import | Contains | Root bundle cost |
+| --- | --- | ---: |
+| `@apideck/agent-analytics` | detection, classification, `agentPolicy`, `trackVisit` | 11.6 kB / **4.5 kB gz** |
+| `…/verify` | Web Bot Auth + published IP range tables | 19.0 kB |
+| `…/payments` | 402 challenges, gateways, entitlements | 10.9 kB |
+| `…/firewall` | WAF rule recommendations (offline tool) | 6.8 kB |
+| `…/markdown` | Markdown-twin content negotiation | 2.0 kB |
+
+This split is load-bearing rather than tidy-minded. Exporting the payment and
+firewall surfaces from the root once pushed it from 9.6 kB to 22.5 kB — every
+site paid for a firewall recommender that will never run in middleware. Nothing
+failed; the number just drifted for weeks until someone looked.
+
+So CI now enforces it. `npm run size` checks each entry against
+[`size-budget.json`](./size-budget.json) and fails the build on a regression:
+
+```
+entry               gzipped     budget  used
+dist/index.js       4.44 kB    4.88 kB   91%
+dist/verify.js      6.25 kB    7.42 kB   84%
+dist/pay.js         4.05 kB    4.49 kB   90%
+```
+
+Raising a budget is deliberate — `npm run size -- --update`, and say why in the
+commit.
 
 ## Install
 

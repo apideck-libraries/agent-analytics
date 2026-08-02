@@ -1,0 +1,25 @@
+{
+  "_comment": "Gzipped byte budgets per entry point. Enforced by scripts/check-size.mjs in CI. Raise deliberately with `node scripts/check-size.mjs --update` and justify it in the commit — the root entry runs in every consumer's edge middleware on every request.",
+  "entries": {
+    "dist/index.js": {
+      "gzipBudget": 5000,
+      "note": "Root: detection, classification, agentPolicy, trackVisit. The one that matters — keep it tight."
+    },
+    "dist/verify.js": {
+      "gzipBudget": 7600,
+      "note": "Carries the published IP range tables, which grow when the weekly refresh adds prefixes. Extra headroom for that."
+    },
+    "dist/pay.js": {
+      "gzipBudget": 4600,
+      "note": "Opt-in payment surface."
+    },
+    "dist/firewall.js": {
+      "gzipBudget": 3200,
+      "note": "Offline analysis tool; never runs in middleware."
+    },
+    "dist/markdown.js": {
+      "gzipBudget": 1300,
+      "note": "Markdown-twin negotiation."
+    }
+  }
+}

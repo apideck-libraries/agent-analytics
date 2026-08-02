@@ -23,6 +23,13 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
+
+      # The root entry ships in every consumer's edge middleware. It silently
+      # doubled once — 9.6 kB to 22.5 kB — because optional surfaces were
+      # exported from the root by reflex, and nothing failed for weeks.
+      - name: Bundle budget
+        run: npm run size
+
       - run: npm run test:unit
 
       # Run separately so a composition failure is legible as one. Every bug
