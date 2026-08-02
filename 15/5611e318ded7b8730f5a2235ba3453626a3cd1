@@ -1,0 +1,25 @@
+src/payments.ts
+  s_1a9eb32591b8d9::t_0a1fd64eb784b0 1-156
+test/payments.test.ts
+  s_1a9eb32591b8d9::t_0a1fd64eb784b0 1-112
+src/index.ts
+  s_1a9eb32591b8d9::t_0a1fd64eb784b0 17-24
+package.json
+  s_1a9eb32591b8d9::t_0a1fd64eb784b0 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "155611e318ded7b8730f5a2235ba3453626a3cd1",
+  "prompts": {},
+  "sessions": {
+    "s_1a9eb32591b8d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4dba8408-d7ac-4810-87de-baf67324bf85",
+        "model": "claude-opus-5"
+      },
+      "human_author": "GJ <info@gertjandewilde.com>"
+    }
+  }
+}
