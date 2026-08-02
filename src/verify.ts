@@ -159,3 +159,50 @@ export function clientIpFromRequest(req: Request): string {
 export function verifyRequest(req: Request): BotVerification {
   return verifyBotIdentity(req.headers.get('user-agent'), clientIpFromRequest(req))
 }
+
+export {
+  clearKeyCache,
+  jwkThumbprint,
+  verifyWebBotAuth,
+  webBotAuthVerifier
+} from './webbotauth.js'
+export type { WebBotAuthOptions, WebBotAuthResult, WebBotAuthVerdict } from './webbotauth.js'
+
+import { verifyWebBotAuth, type WebBotAuthOptions } from './webbotauth.js'
+import type { BotVerificationLike } from './types.js'
+
+/**
+ * Verifier that prefers a cryptographic signature and falls back to published
+ * IP ranges.
+ *
+ * Ordering matters. Web Bot Auth proves control of a signing key, works for
+ * any agent that adopts it, and cannot go stale. IP ranges cover four vendors,
+ * rot between refreshes, and cannot see an agent running on a user's own
+ * machine. So a signature — valid or invalid — is always the answer when one
+ * is present; ranges only speak when the request is unsigned.
+ *
+ * As signing adoption grows this quietly shifts from mostly-ranges to
+ * mostly-signatures with no change at the call site.
+ */
+export function combinedVerifier(
+  opts: WebBotAuthOptions = {}
+): (req: Request) => Promise<BotVerificationLike> {
+  return async (req: Request): Promise<BotVerificationLike> => {
+    const signed = await verifyWebBotAuth(req, opts)
+
+    if (signed.verdict === 'verified') {
+      return { verdict: 'verified', verified: true, reason: 'web-bot-auth' }
+    }
+    // A signature that is present and fails is decisive — do not let a lucky
+    // IP-range hit launder a forged signature into 'verified'.
+    if (signed.verdict === 'invalid-signature' || signed.verdict === 'expired') {
+      return { verdict: 'spoofed', verified: false, reason: `web-bot-auth-${signed.verdict}` }
+    }
+
+    const byRange = verifyRequest(req)
+    if (byRange.verdict !== 'not-claimed' && byRange.verdict !== 'unverifiable') {
+      return { ...byRange, reason: byRange.reason ?? 'published-ip-range' }
+    }
+    return byRange
+  }
+}

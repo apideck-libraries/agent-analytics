@@ -82,6 +82,38 @@ Now you can build:
 
 ---
 
+## Cryptographic verification (Web Bot Auth)
+
+Published IP ranges were always the weak form of identity. [Web Bot
+Auth](https://blog.cloudflare.com/web-bot-auth/) is the strong one: an RFC 9421
+HTTP Message Signatures profile where an agent signs each request with Ed25519
+and publishes its keys at a well-known directory. Backed by Cloudflare, Amazon,
+Akamai and OpenAI, with an IETF working group chartered in 2026.
+
+```ts
+import { combinedVerifier } from '@apideck/agent-analytics/verify'
+
+void trackVisit(req, { analytics, verify: combinedVerifier() })
+```
+
+`combinedVerifier` prefers the signature and falls back to ranges:
+
+| | published IP ranges | Web Bot Auth |
+| --- | --- | --- |
+| Coverage | 4 vendors | any agent that signs |
+| Freshness | rots; needs weekly refresh | none needed |
+| False `spoofed` | stale list accuses real crawlers | impossible |
+| Agents on a user's machine | unverifiable | signable |
+
+A present-but-invalid signature is decisive: it returns `spoofed` even if the
+client IP happens to sit in a published range, so a forged signature cannot be
+laundered by the weaker check. Unsigned traffic is `unverifiable`, never
+`spoofed` — most agents do not sign yet, and treating silence as forgery would
+mislabel nearly all real traffic.
+
+Unsigned requests cost nothing: the check returns before any I/O. Signed ones
+fetch the signer's key directory once per origin and cache it for an hour.
+
 ## Upgrading to 0.12
 
 Four breaking changes, all deliberate. Each one existed because the previous

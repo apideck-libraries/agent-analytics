@@ -80,7 +80,9 @@ export async function trackVisit(req: Request, opts: TrackVisitOptions): Promise
     // Verification is injected rather than imported, so the published IP range
     // tables only reach bundles that actually use them. Import `verifyRequest`
     // from `@apideck/agent-analytics/verify` and pass it as `verify`.
-    const verification = opts.verify ? opts.verify(req) : null
+    // May be async: Web Bot Auth fetches a signer's key directory on first
+    // sight of that origin, then serves from cache.
+    const verification = opts.verify ? await opts.verify(req) : null
 
     // Headless scoring only discriminates for browser-shaped UAs. On a declared
     // crawler or an HTTP client it fires on nearly everything — measured true on

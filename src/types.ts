@@ -41,7 +41,7 @@ export interface TrackVisitOptions {
    * Injected rather than imported so the published IP range tables — the
    * largest thing in the package — only reach bundles that use them.
    */
-  verify?: (req: Request) => BotVerificationLike
+  verify?: (req: Request) => BotVerificationLike | Promise<BotVerificationLike>
   /**
    * Label describing how the request arrived (e.g. `'page-view'`, `'md-suffix'`,
    * `'ua-rewrite'`). Emitted as a `source` property on the captured event so
