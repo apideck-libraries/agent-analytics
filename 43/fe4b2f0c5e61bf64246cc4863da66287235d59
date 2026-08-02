@@ -1,0 +1,59 @@
+test/verify.test.ts
+  s_1a9eb32591b8d9::t_721dc8dbb82fe1 214-278
+  s_1a9eb32591b8d9::t_6b5b1094c90cf1 211-213
+test/hash.test.ts
+  s_1a9eb32591b8d9::t_ca5208984d792c 2-4,7-16,19-20,23-27,30-33,36-38,41-54,57-71
+tsup.config.ts
+  s_1a9eb32591b8d9::t_7cec7881284c28 7,17-18
+src/track.ts
+  s_1a9eb32591b8d9::t_5dae24d72ff630 2,6-36,42,56-78,80-83,85-131,135-138
+src/types.ts
+  s_1a9eb32591b8d9::t_44275efb43a389 12-17,20-44
+src/adapters/webhook.ts
+  s_1a9eb32591b8d9::t_225e807647a3fe 16-17,32,39-40,42-48
+  s_1a9eb32591b8d9::t_3a6480f1d9f2a5 2
+src/markdown.ts
+  s_1a9eb32591b8d9::t_225e807647a3fe 39-46,49,52-53,58
+test/markdown.test.ts
+  s_1a9eb32591b8d9::t_830aa52a306da7 43-48,52-60,62-75
+package.json
+  s_1a9eb32591b8d9::t_b5a8e6075cafde 4,41-44
+  s_1a9eb32591b8d9::t_7cec7881284c28 3
+  s_1a9eb32591b8d9::t_06710c80cae66c 45
+src/adapters/posthog.ts
+  s_1a9eb32591b8d9::t_225e807647a3fe 3,24-29,54-57,61-62,64-70
+  s_1a9eb32591b8d9::t_3a6480f1d9f2a5 2
+src/bots.ts
+  s_1a9eb32591b8d9::t_3a6480f1d9f2a5 315,318-322,325
+src/hash.ts
+  s_1a9eb32591b8d9::t_3e68a472bc6931 2-11,13-18,20-74
+src/verify.ts
+  s_1a9eb32591b8d9::t_0be9c792601e42 58-62,64,74-86,108
+src/errors.ts
+  s_1a9eb32591b8d9::t_3a6480f1d9f2a5 1-11
+src/cidr.ts
+  s_1a9eb32591b8d9::t_0be9c792601e42 87-95,105-106,126-134,137,154,165,168-175
+src/index.ts
+  s_1a9eb32591b8d9::t_7cec7881284c28 14-15,21
+test/track.test.ts
+  s_1a9eb32591b8d9::t_041da7b7a7db40 490-611
+  s_1a9eb32591b8d9::t_830aa52a306da7 4,233-237,247-248,250-251,429,453,463,476,484
+README.md
+  s_1a9eb32591b8d9::t_6a060d6c583de6 85-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "43fe4b2f0c5e61bf64246cc4863da66287235d59",
+  "prompts": {},
+  "sessions": {
+    "s_1a9eb32591b8d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4dba8408-d7ac-4810-87de-baf67324bf85",
+        "model": "claude-opus-5"
+      },
+      "human_author": "GJ <info@gertjandewilde.com>"
+    }
+  }
+}
