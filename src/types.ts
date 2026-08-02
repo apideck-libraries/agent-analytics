@@ -58,6 +58,24 @@ export interface TrackVisitOptions {
    */
   captureCountry?: boolean
   /**
+   * When `true`, check the request's claimed crawler identity against the
+   * vendor's published IP ranges and emit `bot_verified` (tri-state) plus
+   * `bot_verification` (`verified` | `spoofed` | `unverifiable` |
+   * `not-claimed`) on the event.
+   *
+   * UA strings are trivially forgeable — `curl -A "ChatGPT-User"` is
+   * indistinguishable from the real thing without this check. Off by default
+   * because it only means something when the client IP is trustworthy: on
+   * Vercel and Cloudflare the edge overwrites `x-forwarded-for`, but behind a
+   * proxy that passes the client-supplied header through, an attacker controls
+   * the value and a `verified` verdict is worthless.
+   *
+   * Only vendors that publish a machine-readable range feed can be verified —
+   * currently OpenAI, Anthropic, Perplexity, and Apple. Everything else yields
+   * `unverifiable`, never `spoofed`.
+   */
+  verifyIdentity?: boolean
+  /**
    * When `true`, emit `region`, `city`, `latitude`, `longitude`, and
    * `timezone` derived from Vercel's `x-vercel-ip-*` edge headers. Values
    * are URL-decoded (Vercel encodes city/region, e.g. `San%20Francisco`).

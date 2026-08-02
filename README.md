@@ -306,6 +306,82 @@ Full middleware example: [`README.md → Markdown mirror helpers`](./README.md#m
 
 ---
 
+## Advanced: verifying crawler identity against published IP ranges
+
+User agents are trivially forged — `curl -A "ChatGPT-User"` is indistinguishable
+from the real thing at the UA layer. Set `verifyIdentity: true` to check the
+client IP against the vendor's published crawler ranges:
+
+```ts
+void trackVisit(request, {
+  analytics,
+  verifyIdentity: true,
+  captureIp: true // not required, but useful for auditing a 'spoofed' verdict
+})
+```
+
+Three properties land on the event:
+
+| property | values |
+| --- | --- |
+| `bot_verification` | `verified` \| `spoofed` \| `unverifiable` \| `not-claimed` |
+| `bot_verified` | `true` \| `false` \| `null` — tri-state, for quick filtering |
+| `bot_verification_reason` | why, when the verdict is `unverifiable` |
+
+### What can actually be verified
+
+Only vendors that publish a machine-readable range feed: **OpenAI**,
+**Anthropic**, **Perplexity**, and **Apple**. Bytespider, Amazonbot, Meta and
+the rest report `unverifiable` — never `spoofed`. Collapsing "we can't check"
+into "impostor" would be a false accusation, which is why `bot_verified` is
+tri-state rather than a boolean.
+
+### Server-side crawlers vs client-side agents
+
+A published range list covers a vendor's **crawler fleet**, not its products
+that fetch from the end user's device. Claude Code runs on a developer's
+laptop, so the request carries *their* IP and will never appear in Anthropic's
+ranges. Measured over 30 days of production traffic:
+
+| user agent | events | distinct IPs | in published range |
+| --- | ---: | ---: | ---: |
+| `ClaudeBot` | 13,671 | 236 | 96% |
+| `PerplexityBot` | 6,897 | 158 | 91% |
+| `ChatGPT-User` | ~72,000 | 43 | 99% |
+| `Claude-User` (claude-code CLI) | 6,492 | 4,486 | **0%** |
+| `Perplexity-User` | 493 | 148 | **0%** |
+
+A naive vendor-level check would brand the bottom two rows — roughly 7,000
+legitimate fetches a month — as impersonation. So the library gates verdicts on
+the *product*, returning `unverifiable` with reason `client-side-agent` for
+those. Note the distinction is not a `-User` suffix: OpenAI's `ChatGPT-User`
+fetches server-side from Azure and verifies at ~99%.
+
+### Keeping the ranges fresh
+
+The bundled snapshot is in `src/bot-ranges.ts`, stamped with
+`BOT_RANGES_CAPTURED_AT`. Refresh it on a schedule:
+
+```bash
+node scripts/refresh-bot-ranges.mjs
+```
+
+Freshness is the whole game. Nearly every OpenAI prefix is an Azure block and
+Anthropic's are GCP, so "came from a datacenter" proves nothing on its own —
+only membership in the *current* published list does. A stale snapshot produces
+false `spoofed` verdicts on real crawlers, so the refresh script refuses to
+write a list that shrinks by more than half or when any feed errors.
+
+### Trusting the client IP
+
+The verdict is only as good as the IP. On Vercel and Cloudflare the edge
+overwrites `x-forwarded-for`, so the first hop is trustworthy. Behind a proxy
+that passes a client-supplied header through, an attacker controls the value
+and `verified` means nothing — confirm your proxy's behaviour before acting on
+this data.
+
+---
+
 ## Advanced: Peec.ai crawl-insights export
 
 [Peec.ai](https://peec.ai)'s **Agent analytics** product ingests a CSV/CLF access log and produces dashboards on top of it. The Peec docs assume you have a Vercel Log Drain → Axiom (or similar) pipeline that emits these eight columns: `timestamp, request_method, request_url, response_status, client_ip, user_agent, country_code, referer`.

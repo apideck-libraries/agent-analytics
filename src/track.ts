@@ -1,4 +1,5 @@
 import { classifyRequest, detectHeadless, isAiBot, isHttpClient } from './bots.js'
+import { verifyBotIdentity } from './verify.js'
 import { hashId } from './hash.js'
 import type { TrackVisitOptions } from './types.js'
 
@@ -50,6 +51,9 @@ export async function trackVisit(
     : null
   const geo = opts.captureGeo ? extractGeo(req) : null
   const classification = classifyRequest(req)
+  // Only run the range check when asked — it is pure CPU over pre-compiled
+  // masks, but the verdict is misleading unless the caller trusts `ip`.
+  const verification = opts.verifyIdentity ? verifyBotIdentity(userAgent, ip) : null
 
   const event = {
     event: opts.eventName ?? 'agent_visit',
@@ -70,6 +74,13 @@ export async function trackVisit(
       coding_agent_hint: classification.codingAgentHint,
       headless_score: classification.headless?.score ?? 0,
       headless_likely: classification.headless?.likely ?? false,
+      ...(verification
+        ? {
+            bot_verified: verification.verified,
+            bot_verification: verification.verdict,
+            ...(verification.reason ? { bot_verification_reason: verification.reason } : {})
+          }
+        : {}),
       referer,
       source: opts.source ?? null,
       ...opts.properties
