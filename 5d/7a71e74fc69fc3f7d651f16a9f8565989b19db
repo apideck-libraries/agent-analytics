@@ -1,0 +1,29 @@
+src/index.ts
+  s_1a9eb32591b8d9::t_d1fc170786862e 1-10
+src/pay.ts
+  s_1a9eb32591b8d9::t_d1fc170786862e 1-14
+package.json
+  s_1a9eb32591b8d9::t_d1fc170786862e 4,46-55
+tsup.config.ts
+  s_1a9eb32591b8d9::t_d1fc170786862e 8-9
+README.md
+  s_1a9eb32591b8d9::t_55f05dcf429668 107,128,261,285-302
+docs/TESTING-PAYMENTS.md
+  s_1a9eb32591b8d9::t_3cb4f063d50596 24,75,104,209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "5d7a71e74fc69fc3f7d651f16a9f8565989b19db",
+  "prompts": {},
+  "sessions": {
+    "s_1a9eb32591b8d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4dba8408-d7ac-4810-87de-baf67324bf85",
+        "model": "claude-opus-5"
+      },
+      "human_author": "GJ <info@gertjandewilde.com>"
+    }
+  }
+}
