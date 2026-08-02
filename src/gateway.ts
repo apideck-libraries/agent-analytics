@@ -1,6 +1,7 @@
 /**
  * The paid-access gate: policy decides *whether* to charge, a gateway decides
- * *how*.
+ * *how*. **EXPERIMENTAL** — see `payments.ts`. The classification and policy
+ * layers underneath are stable; the payment surface is not.
  *
  * The split matters. We own classification — telling a training crawl from a
  * retrieval fetch, which is the part nobody else does and the part that makes
@@ -13,6 +14,7 @@
  */
 
 import { agentPolicy, type AgentDecision, type AgentPolicyOptions } from './policy.js'
+import type { BotVerificationLike } from './types.js'
 import { paymentRequired, type PaymentChallengeOptions } from './payments.js'
 
 /**
@@ -98,8 +100,16 @@ export function x402Gateway(opts: X402GatewayOptions): PaymentGateway {
   }
 }
 
-export interface PaymentGateOptions extends AgentPolicyOptions {
+export interface PaymentGateOptions extends Omit<AgentPolicyOptions, 'verify'> {
   gateway: PaymentGateway
+  /**
+   * Identity verifier, sync or async. Unlike {@link agentPolicy}'s option this
+   * accepts a promise, because `paymentGate` is already async and can await it.
+   * That matters: `combinedVerifier()` and `webBotAuthVerifier()` are async by
+   * necessity — Web Bot Auth fetches the signer's key directory — so without
+   * this they could not be used with policy or payments at all.
+   */
+  verify?: (req: Request) => BotVerificationLike | Promise<BotVerificationLike>
   /**
    * Called for every decision, paid or not — wire it to your metering so
    * `'meter'` traffic is actually counted rather than merely allowed.
@@ -138,8 +148,15 @@ export async function paymentGate(
   /** Wrap the response you were going to send. Identity when nothing to add. */
   decorate: (res: Response) => Response
 }> {
-  const { gateway, onDecision, ...policyOpts } = opts
-  const decision = agentPolicy(req, policyOpts)
+  const { gateway, onDecision, verify, ...policyOpts } = opts
+  // Await here so an async verifier works. Passing the function straight into
+  // agentPolicy would hand it a promise to read `.verdict` off — undefined at
+  // runtime, and a type error at compile time.
+  const verification = verify ? await verify(req) : undefined
+  const decision = agentPolicy(req, {
+    ...policyOpts,
+    ...(verification ? { verification } : {})
+  })
   onDecision?.(decision)
 
   const identity = (res: Response) => res

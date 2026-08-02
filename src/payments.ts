@@ -1,5 +1,12 @@
 /**
- * Charge for training crawls.
+ * Charge for training crawls. **EXPERIMENTAL.**
+ *
+ * The protocols this speaks are weeks old and moving. x402 and MPP are both
+ * live but their specs are unstable, MPP's settlement-confirmation header was
+ * not pinned publicly at the time of writing, and no agent in our production
+ * traffic has yet presented a payment credential. Expect this API to change
+ * without a major version while that settles — everything else in the package
+ * is stable, this is not.
  *
  * Today the industry's answer to bulk AI crawling is `Disallow` — over 2.5
  * million sites block AI training in robots.txt. That leaves money on the

@@ -65,6 +65,16 @@ export interface AgentPolicyOptions {
    * an attacker picks their own verdict.
    */
   verify?: (req: Request) => BotVerificationLike
+  /**
+   * A verification already computed elsewhere. Use this when your verifier is
+   * async — {@link verifyWebBotAuth} fetches a key directory, so the natural
+   * verifier from `@apideck/agent-analytics/verify` returns a promise and
+   * cannot be passed to `verify` on this synchronous function.
+   *
+   * {@link paymentGate} does this for you: it awaits the verifier and forwards
+   * the result here.
+   */
+  verification?: BotVerificationLike
   /** What to do with bulk training crawlers. Defaults to `'meter'`. */
   onTraining?: AgentAction
   /** What to do with retrieval agents. Defaults to `'allow'` — see AgentIntent. */
@@ -128,9 +138,12 @@ export function agentPolicy(req: Request, opts: AgentPolicyOptions = {}): AgentD
     return { action: 'allow', intent, label, reason: 'on allowList' }
   }
 
+  // A pre-resolved verification wins: it is the only way an async verifier can
+  // reach this synchronous function.
+  const resolved = opts.verification ?? (opts.verify ? opts.verify(req) : undefined)
   let verification: string | undefined
-  if (opts.verify) {
-    verification = opts.verify(req).verdict
+  if (resolved) {
+    verification = resolved.verdict
     // Only 'spoofed' is actionable. 'unverifiable' means we couldn't check —
     // blocking on it would refuse every vendor without a published feed and
     // every coding agent running on someone's own machine.

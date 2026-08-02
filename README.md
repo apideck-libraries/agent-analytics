@@ -82,6 +82,49 @@ Now you can build:
 
 ---
 
+## Charging for training crawls (experimental)
+
+> **⚠️ Experimental.** The payment surface — `paymentRequired`, `paymentGate`,
+> `x402Gateway`, `mppxGateway` — may change without a major version bump. The
+> protocols are weeks old and still moving: x402 and MPP are both live but their
+> specs are unstable, MPP had not publicly pinned a settlement-confirmation
+> header at the time of writing, and no agent in our own production traffic has
+> yet presented a payment credential. Detection, verification and policy are
+> stable; this is not. Do not put it on a revenue-critical path yet.
+
+Over 2.5 million sites answer bulk AI crawling with `Disallow`. That leaves
+money on the table and only works if the crawler cooperates. The alternative is
+to price it — which only works if you can tell training from retrieval, because
+charging a `ChatGPT-User` fetch means charging the person who just asked about
+you.
+
+```ts
+import { paymentGate, x402Gateway } from '@apideck/agent-analytics'
+import { combinedVerifier } from '@apideck/agent-analytics/verify'
+
+const gate = await paymentGate(req, {
+  onTraining: 'charge',
+  verify: combinedVerifier(),
+  gateway: x402Gateway({ challenges: [...], settle: myFacilitator })
+})
+if (gate.response) return gate.response
+return gate.decorate(await serve(req))
+```
+
+Measured against real traffic shapes:
+
+```
+402    training   charge  GPTBot
+serve  retrieval  allow   ChatGPT-User
+403    training   block   ClaudeBot from an unpublished IP
+402    training   charge  ClaudeBot from a real Anthropic IP
+serve  search     allow   Googlebot
+```
+
+Settlement is never ours. `mppxGateway` wraps Stripe's MPP SDK; `x402Gateway`
+calls a facilitator you supply. The library emits challenges and reads
+credentials — holding money would drag PCI scope into edge middleware.
+
 ## Cryptographic verification (Web Bot Auth)
 
 Published IP ranges were always the weak form of identity. [Web Bot
