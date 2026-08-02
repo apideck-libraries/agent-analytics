@@ -118,3 +118,46 @@ describe('agentPolicy with verification', () => {
     expect(d.action).toBe('allow')
   })
 })
+
+describe('agentIntent and agentPolicy never disagree', () => {
+  // These are two separately exported functions answering the same question. If
+  // they diverge, a caller has no way to know which is authoritative — and the
+  // divergence is silent. It shipped that way: the `tooling` promotion lived
+  // only inside agentPolicy, so agentIntent('curl/8.4.0') returned 'unknown'
+  // while the policy returned 'tooling', for every HTTP client.
+  const CORPUS = [
+    'curl/8.4.0',
+    'axios/1.8.4',
+    'python-requests/2.31.0',
+    'Go-http-client/1.1',
+    'node-fetch/3.0.0',
+    'Electron/28.0.0',
+    'okhttp/4.12.0',
+    'aiohttp/3.9.1',
+    'Deno/1.40.0',
+    'Mozilla/5.0 (compatible; GPTBot/1.1)',
+    'Mozilla/5.0 (compatible; ChatGPT-User/1.0)',
+    'Mozilla/5.0 (compatible; ClaudeBot/1.0)',
+    'Claude-User (claude-code/2.1.218)',
+    'Mozilla/5.0 (compatible; Googlebot/2.1)',
+    'Mozilla/5.0 (compatible; Applebot/0.1)',
+    'Mozilla/5.0 (compatible; Applebot-Extended/0.1)',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+    '',
+    'SomethingCompletelyUnknown/9'
+  ]
+
+  it.each(CORPUS)('agrees for %s', (ua) => {
+    const fromRequest = agentPolicy(
+      new Request('https://example.com/', { headers: { 'user-agent': ua } })
+    ).intent
+    expect(agentIntent(ua)).toBe(fromRequest)
+  })
+
+  it('classifies HTTP libraries as tooling from the UA alone', () => {
+    // No Request needed — the old asymmetry was that only the Request-taking
+    // path knew about HTTP clients.
+    expect(agentIntent('curl/8.4.0')).toBe('tooling')
+    expect(agentIntent('axios/1.8.4')).toBe('tooling')
+  })
+})

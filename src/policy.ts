@@ -1,4 +1,4 @@
-import { classifyRequest } from './bots.js'
+import { classifyRequest, isHttpClient } from './bots.js'
 import type { BotVerificationLike } from './types.js'
 
 /**
@@ -77,7 +77,16 @@ export interface AgentPolicyOptions {
   allowList?: readonly string[]
 }
 
-/** Classify why an agent is here, from its user agent alone. */
+/**
+ * Classify why an agent is here, from its user agent alone.
+ *
+ * This must return exactly what {@link agentPolicy} reports for the same UA.
+ * It previously did not: the `tooling` promotion for HTTP-library UAs lived
+ * only inside `agentPolicy`, so `agentIntent('curl/8.4.0')` said `'unknown'`
+ * while the policy said `'tooling'` — two exported functions disagreeing on
+ * every HTTP client, with no way for a caller to know which was right. The
+ * invariant is pinned by a test.
+ */
 export function agentIntent(userAgent: string | null | undefined): AgentIntent {
   const ua = userAgent ?? ''
   if (!ua) return 'unknown'
@@ -86,6 +95,8 @@ export function agentIntent(userAgent: string | null | undefined): AgentIntent {
   if (RETRIEVAL.test(ua)) return 'retrieval'
   if (TRAINING.test(ua)) return 'training'
   if (SEARCH.test(ua)) return 'search'
+  // An HTTP-library UA that matched no vendor is a coding agent or a script.
+  if (isHttpClient(ua)) return 'tooling'
   return 'unknown'
 }
 
@@ -106,9 +117,9 @@ export function agentPolicy(req: Request, opts: AgentPolicyOptions = {}): AgentD
   const classification = classifyRequest(req)
   const label = classification.label
 
-  let intent = agentIntent(ua)
-  // An HTTP-library UA that matched no vendor is a coding agent or a script.
-  if (intent === 'unknown' && classification.codingAgentHint) intent = 'tooling'
+  // Single source of truth — the promotion that used to live here now lives in
+  // agentIntent, so the two can no longer drift apart.
+  const intent = agentIntent(ua)
 
   const allowed = opts.allowList?.some(
     (entry) => entry === label || ua.toLowerCase().includes(entry.toLowerCase())

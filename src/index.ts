@@ -14,6 +14,14 @@ export type { AgentClassification, AgentKind, HeadlessDetection } from './bots.j
 export { hashId, randomSecret, HashSecretError } from './hash.js'
 export { CaptureTransportError } from './errors.js'
 export { agentIntent, agentPolicy } from './policy.js'
+export { mppxGateway, paymentGate, x402Gateway } from './gateway.js'
+export type {
+  GatewayResult,
+  MppxResponse,
+  PaymentGateOptions,
+  PaymentGateway,
+  X402GatewayOptions
+} from './gateway.js'
 export {
   hasPaymentPayload,
   paymentPayload,
