@@ -1,7 +1,7 @@
 {
   "name": "@apideck/agent-analytics",
   "version": "0.15.0",
-  "description": "Track AI agent and bot traffic to your Next.js / Vercel app — PostHog, webhooks, or any custom analytics backend. Detects Claude, ChatGPT, Perplexity, Google-Extended, and more.",
+  "description": "Track AI agent and bot traffic to your Next.js / Vercel app \u2014 PostHog, webhooks, or any custom analytics backend. Detects Claude, ChatGPT, Perplexity, Google-Extended, and more.",
   "keywords": [
     "ai",
     "agents",
@@ -42,6 +42,16 @@
       "types": "./dist/verify.d.ts",
       "import": "./dist/verify.js",
       "require": "./dist/verify.cjs"
+    },
+    "./payments": {
+      "types": "./dist/pay.d.ts",
+      "import": "./dist/pay.js",
+      "require": "./dist/pay.cjs"
+    },
+    "./firewall": {
+      "types": "./dist/firewall.d.ts",
+      "import": "./dist/firewall.js",
+      "require": "./dist/firewall.cjs"
     },
     "./posthog": {
       "types": "./dist/adapters/posthog.d.ts",

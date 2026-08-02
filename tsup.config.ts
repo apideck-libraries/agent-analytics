@@ -5,6 +5,8 @@ export default defineConfig({
     'src/index.ts',
     'src/markdown.ts',
     'src/verify.ts',
+    'src/pay.ts',
+    'src/firewall.ts',
     'src/adapters/posthog.ts',
     'src/adapters/webhook.ts'
   ],

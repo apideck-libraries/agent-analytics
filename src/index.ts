@@ -1,3 +1,13 @@
+/**
+ * Package root: detection, classification, policy and capture.
+ *
+ * Deliberately excludes the paid-access surface and the firewall recommender.
+ * Both are opt-in and neither belongs in an edge bundle by default:
+ *
+ *     @apideck/agent-analytics/verify     identity verification + IP ranges
+ *     @apideck/agent-analytics/payments   402 challenges, gateways, entitlements
+ *     @apideck/agent-analytics/firewall    WAF rule recommendations (offline)
+ */
 export { trackVisit } from './track.js'
 export {
   AI_BOT_PATTERN,
@@ -14,23 +24,6 @@ export type { AgentClassification, AgentKind, HeadlessDetection } from './bots.j
 export { hashId, randomSecret, HashSecretError } from './hash.js'
 export { CaptureTransportError } from './errors.js'
 export { agentIntent, agentPolicy } from './policy.js'
-export { mppxGateway, paymentGate, x402Gateway } from './gateway.js'
-export { entitlementGateway, memoryEntitlementStore } from './entitlement.js'
-export { firewallScript, recommendFirewallRules } from './firewall.js'
-export type {
-  FirewallAction,
-  FirewallCondition,
-  FirewallRecommendation,
-  RateLimitSpec,
-  RecommendOptions,
-  TrafficObservation
-} from './firewall.js'
-export type {
-  BulkOffer,
-  Entitlement,
-  EntitlementGatewayOptions,
-  EntitlementStore
-} from './entitlement.js'
 export type {
   GatewayResult,
   Meter,
@@ -40,13 +33,6 @@ export type {
   PaymentGateway,
   X402GatewayOptions
 } from './gateway.js'
-export {
-  hasPaymentPayload,
-  paymentPayload,
-  paymentRequired,
-  respondToDecision,
-  withSettlement
-} from './payments.js'
 export type {
   MppChallenge,
   PaymentChallenge,
